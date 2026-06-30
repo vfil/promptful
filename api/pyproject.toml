@@ -13,6 +13,7 @@ dependencies = [
     "alembic>=1.18.4",
     "pydantic>=2.13.4",
     "pydantic-settings>=2.14.2",
+    "jinja2>=3.1.6",
 ]
 
 [dependency-groups]
@@ -24,7 +25,7 @@ dev = [
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-# api/ on sys.path so tests import the app modules (documents, main, db.*).
+# api/ on sys.path so tests import the app modules (app.main, app.models.*, app.schemas.*, ...).
 pythonpath = ["."]
 # auto: plain `async def test_*` are collected without per-test markers.
 asyncio_mode = "auto"

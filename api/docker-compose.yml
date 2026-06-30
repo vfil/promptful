@@ -1,5 +1,6 @@
+name: ply_project
 services:
-  db:
+  ply_db:
     image: postgres
     # restart: always - it seems this will reset data every time.
     # set shared memory limit when using docker compose
@@ -13,9 +14,9 @@ services:
 
     # ENVs
     environment:
-      POSTGRES_PASSWORD: example
+      POSTGRES_PASSWORD: ply_example
     ports:
-      - 5432:5432
+      - 5433:5432
     # Persist the data directory across container removal, and auto-seed a
     # fresh volume from the committed Snapshot. The initdb.d script runs only
     # when the data dir is empty (first creation / after `down -v`), so a
@@ -24,15 +25,15 @@ services:
     # snapshot.sql must already exist on disk before `up` — Docker turns a
     # missing bind-mount source into a directory. See
     # docs/adr/0004-database-snapshot-and-seed.md.
-    volumes:
-      - pgdata:/var/lib/postgresql/data
-      - ./db/data/snapshot.sql:/docker-entrypoint-initdb.d/snapshot.sql:ro
 
-  adminer:
+    # volumes:
+    #   - pgdata_ply:/var/lib/postgresql/data
+
+  ply_adminer:
     image: adminer
     restart: always
     ports:
-      - 8085:8080
+      - 8086:8080
 
 volumes:
-  pgdata:
+  pgdata_ply:
