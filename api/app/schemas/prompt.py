@@ -5,19 +5,20 @@ from datetime import datetime
 import jinja2
 from pydantic import BaseModel, ConfigDict, field_validator
 
-# Keep in sync with app.models.prompt.SLUG_REGEX (DB-level CHECK constraint).
-SLUG_PATTERN = re.compile(r"^(/[a-z0-9]+(-[a-z0-9]+)*)+$")
+from app.schemas.category import SLUG_SEGMENT_PATTERN, SLUG_SEGMENT_FORMAT_ERROR
 
-SLUG_FORMAT_ERROR = (
-    "slug must look like a URL path: lowercase letters, digits and hyphens per segment, "
-    "segments separated by '/', leading '/' required, no trailing or double slashes "
-    "(e.g. /sales/screening/first-lead)"
+# Leaf slug follows the same format as a Category Slug Segment.
+LEAF_SLUG_PATTERN = SLUG_SEGMENT_PATTERN
+
+LEAF_SLUG_FORMAT_ERROR = (
+    "leaf_slug must be lowercase letters, digits and hyphens only, "
+    "no slashes (e.g. 'first-lead')"
 )
 
 
-def validate_slug(value: str) -> str:
-    if not SLUG_PATTERN.match(value):
-        raise ValueError(SLUG_FORMAT_ERROR)
+def validate_leaf_slug(value: str) -> str:
+    if not LEAF_SLUG_PATTERN.match(value):
+        raise ValueError(LEAF_SLUG_FORMAT_ERROR)
     return value
 
 
@@ -30,13 +31,14 @@ def validate_jinja2_text(value: str) -> str:
 
 
 class PromptCreate(BaseModel):
-    slug: str
+    leaf_slug: str
+    category_id: uuid.UUID
     text: str
 
-    @field_validator("slug")
+    @field_validator("leaf_slug")
     @classmethod
-    def _validate_slug(cls, value: str) -> str:
-        return validate_slug(value)
+    def _validate_leaf_slug(cls, value: str) -> str:
+        return validate_leaf_slug(value)
 
     @field_validator("text")
     @classmethod
@@ -57,7 +59,9 @@ class PromptVersionRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: uuid.UUID
-    slug: str
+    slug: str          # computed property on PromptVersion: category.path + "/" + leaf_slug
+    leaf_slug: str
+    category_id: uuid.UUID
     version: int
     text: str
     is_deleted: bool
