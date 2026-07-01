@@ -27,7 +27,7 @@ Key dependencies: `fastapi[standard]`, `sqlalchemy[asyncio]`, `asyncpg` (runtime
 ```bash
 cd api
 uv sync                       # install dependencies into .venv
-uv run fastapi dev            # run the dev server with reload
+uv run fastapi dev --port 8001  # run the dev server with reload (port 8001; 8000 conflicts locally)
 uv run alembic upgrade head   # apply migrations
 uv run alembic revision --autogenerate -m "message"   # generate a migration after model changes
 uv run pytest                          # run the full test suite

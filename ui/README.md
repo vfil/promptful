@@ -11,7 +11,7 @@ pnpm install
 Create a `.env.local` file with the API base URL:
 
 ```bash
-NEXT_PUBLIC_API_URL=http://localhost:8000
+NEXT_PUBLIC_API_URL=http://localhost:8001
 ```
 
 ## Development
@@ -24,7 +24,7 @@ Runs `tsc --noEmit --watch` and `next dev` concurrently. TypeScript errors appea
 even if the Next.js dev server compiles successfully — a red squiggly in the `tsc` output is a real
 type error.
 
-Requires the backend running with CORS enabled for `localhost:3000`. See `api/README.md` for
+Requires the backend running with CORS enabled for `localhost:3001`. See `api/README.md` for
 backend startup.
 
 ## Type-check only

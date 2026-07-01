@@ -34,8 +34,8 @@ POSTGRES_DB=app_test uv run alembic upgrade head   # test database
 ## Running
 
 ```bash
-uv run fastapi dev app/main.py     # dev server with reload, http://localhost:8000
-uv run uvicorn app.main:app        # equivalent, without the fastapi CLI wrapper
+uv run fastapi dev app/main.py     # dev server with reload, http://localhost:8000, add port option if needed
+uv run fastapi dev --port 8001        # equivalent, without the fastapi CLI wrapper
 ```
 
 Interactive API docs are served at `/docs` (Swagger UI) and `/redoc`.

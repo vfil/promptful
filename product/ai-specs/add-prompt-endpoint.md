@@ -177,7 +177,7 @@ First frontend feature: a single page at the app's root route to create a Prompt
 route — considered and rejected: a proxy would avoid touching the backend at all, but was rejected
 to keep this single-endpoint feature from needing a parallel route-handler layer in `ui/`). Before
 this page works, add `CORSMiddleware` to `main.py` allowing the Next.js dev origin
-(`http://localhost:3000`). This is a backend code change, out of scope for the planning-only session
+(`http://localhost:3001`). This is a backend code change, out of scope for the planning-only session
 that produced this doc.
 
 ### Page

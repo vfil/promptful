@@ -80,7 +80,7 @@ playwright-cli run-code "async page => {
 ```bash
 playwright-cli run-code "async page => {
   await page.route('**/api/slow', async route => {
-    await new Promise(r => setTimeout(r, 3000));
+    await new Promise(r => setTimeout(r, 3001));
     route.fulfill({ body: JSON.stringify({ data: 'loaded' }) });
   });
 }"

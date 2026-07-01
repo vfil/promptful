@@ -6,7 +6,7 @@
     "node": ">=18.17"
   },
   "scripts": {
-    "dev": "concurrently -n tsc,next -c cyan,green \"tsc --noEmit --watch\" \"next dev\"",
+    "dev": "concurrently -n tsc,next -c cyan,green \"tsc --noEmit --watch\" \"next dev --port 3001\"",
     "build": "next build",
     "start": "next start",
     "lint": "eslint .",
