@@ -1,26 +1,47 @@
 # Promptful
 
 A CRUD service for managing LLM prompts for private persons and companies, with full history
-versioning per slug and slug-based namespacing.
+versioning per slug and category-based namespacing.
 
 ## Language
 
 **Prompt**:
-The namespace-level entity addressed by a Slug. Persists across all its Versions, including
-after it has been deleted (Tombstoned) — a Prompt's history is never destroyed.
+The entity addressed by a Slug, belonging to exactly one Category. Persists across all its
+Versions, including after it has been deleted (Tombstoned) — a Prompt's history is never
+destroyed. A Prompt cannot be moved to a different Category after creation.
 _Avoid_: prompt entity (when referring to a single row)
 
+**Category**:
+A named grouping that organises Prompts hierarchically. A Category has one Slug Segment and an
+optional parent Category; if no parent is set, it is a root Category. A Category cannot be
+renamed or deleted while it has child Categories or Prompts.
+_Avoid_: namespace, folder, group
+
+**Slug Segment**:
+The slug-safe name of a Category (e.g. `screening`). Lowercase alphanumeric with hyphens, no
+slashes. Immutable once the Category is created.
+_Avoid_: segment, name, label
+
+**Category Path**:
+The full hierarchical address of a Category (e.g. `/sales/screening`), assembled by joining its
+ancestor Slug Segments with `/`. Immutable because Slug Segments never change.
+_Avoid_: path, full path, category slug
+
+**Leaf Slug**:
+The slug-safe local name of a Prompt within its Category (e.g. `first-lead`). No slashes.
+Together with the Category Path it forms the full Slug. Fixed at Prompt creation.
+_Avoid_: name, prompt name, local slug
+
 **Slug**:
-A hierarchical, URL-path-like identifier (e.g. `/sales/screening/first-lead`) that addresses a
-Prompt and implies its namespace via path segments. Fixed once a Prompt exists at it — there is
-no rename/move operation.
+The full address of a Prompt (e.g. `/sales/screening/first-lead`), derived as
+`Category Path + "/" + Leaf Slug`. Stable and globally unique — neither the Category nor the
+Leaf Slug can change after creation.
 _Avoid_: path, key, name
 
 **Version**:
-One immutable row for a Prompt: a specific `(slug, version number)` pair with its own `id`,
-`text`, `is_deleted` flag, and `created_at`. Created by every Create/Update/Delete operation;
-never modified or overwritten in place. This is what "an instance of a prompt ready to be used
-in an agentic workflow" refers to.
+One immutable row for a Prompt, identified by its `(Leaf Slug, Category, version number)`
+triple, with its own `id`, `text`, `is_deleted` flag, and `created_at`. Created by every
+Create/Update/Delete operation; never modified or overwritten in place.
 _Avoid_: prompt entity (when referring to a row), revision
 
 **Live Version**:
