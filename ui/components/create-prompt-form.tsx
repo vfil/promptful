@@ -1,56 +1,25 @@
 "use client"
 
 import { useState } from "react"
-import { useMutation } from "@tanstack/react-query"
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000"
-
-export interface PromptVersion {
-  id: string
-  slug: string
-  version: number
-  text: string
-  is_deleted: boolean
-  created_at: string
-}
-
-interface ValidationError {
-  loc: string[]
-  msg: string
-  type: string
-}
-
-class ApiCallError extends Error {
-  constructor(
-    readonly status: number,
-    readonly detail: string | ValidationError[]
-  ) {
-    super("API call failed")
-    this.name = "ApiCallError"
-  }
-}
+import { CategoryCombobox } from "@/components/category-combobox"
+import {
+  ApiCallError,
+  type ValidationError,
+  createCategory,
+  createPrompt,
+  getCategories,
+} from "@/lib/api"
 
 interface FormErrors {
-  slugError?: string
+  leafSlugError?: string
+  categoryError?: string
   textError?: string
   generic?: string
-}
-
-async function createPrompt(slug: string, text: string): Promise<PromptVersion> {
-  const res = await fetch(`${API_URL}/prompt/create`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ slug, text }),
-  })
-  if (!res.ok) {
-    const body = await res.json().catch(() => ({}))
-    throw new ApiCallError(res.status, body.detail ?? "Request failed")
-  }
-  return res.json()
 }
 
 function classifyError(err: unknown): FormErrors {
@@ -58,14 +27,21 @@ function classifyError(err: unknown): FormErrors {
   const { status, detail } = err
 
   if (status === 409 && typeof detail === "string") {
-    return { slugError: detail }
+    return { leafSlugError: detail }
+  }
+
+  if (status === 404 && typeof detail === "string") {
+    return { categoryError: detail }
   }
 
   if (status === 422 && Array.isArray(detail)) {
-    const slugErr = detail.find((e) => e.loc[1] === "slug")
-    const textErr = detail.find((e) => e.loc[1] === "text")
+    const errors = detail as ValidationError[]
+    const leafSlugErr = errors.find((e) => e.loc[1] === "leaf_slug")
+    const categoryErr = errors.find((e) => e.loc[1] === "category_id")
+    const textErr = errors.find((e) => e.loc[1] === "text")
     return {
-      slugError: slugErr?.msg.replace(/^Value error, /, ""),
+      leafSlugError: leafSlugErr?.msg.replace(/^Value error, /, ""),
+      categoryError: categoryErr?.msg.replace(/^Value error, /, ""),
       textError: textErr?.msg.replace(/^Value error, /, ""),
     }
   }
@@ -74,15 +50,29 @@ function classifyError(err: unknown): FormErrors {
 }
 
 export function CreatePromptForm() {
-  const [slug, setSlug] = useState("")
+  const [leafSlug, setLeafSlug] = useState("")
+  const [categoryId, setCategoryId] = useState<string | null>(null)
+  const [parentCategoryId, setParentCategoryId] = useState<string | null>(null)
   const [text, setText] = useState("")
   const [errors, setErrors] = useState<FormErrors>({})
 
-  const mutation = useMutation<PromptVersion, ApiCallError>({
-    mutationFn: () => createPrompt(slug, text),
+  const queryClient = useQueryClient()
+
+  const { data: categories = [] } = useQuery({
+    queryKey: ["categories"],
+    queryFn: getCategories,
+  })
+
+  const mutation = useMutation({
+    mutationFn: () => {
+      if (!categoryId) throw new Error("Category is required")
+      return createPrompt(leafSlug, categoryId, text)
+    },
     onSuccess: () => {
       toast.success("Prompt created")
-      setSlug("")
+      setLeafSlug("")
+      setCategoryId(null)
+      setParentCategoryId(null)
       setText("")
       setErrors({})
     },
@@ -90,6 +80,14 @@ export function CreatePromptForm() {
       setErrors(classifyError(err))
     },
   })
+
+  async function handleCreateCategory(slug_segment: string) {
+    const cat = await createCategory(slug_segment, parentCategoryId ?? undefined)
+    // Write the new category into the cache immediately so the combobox renders it
+    // before any background refetch completes.
+    queryClient.setQueryData(["categories"], (old: typeof categories) => [...old, cat])
+    setCategoryId(cat.id)
+  }
 
   return (
     <form
@@ -100,21 +98,53 @@ export function CreatePromptForm() {
       }}
       className="flex flex-col gap-4 max-w-xl mx-auto mt-16 px-4"
     >
+      {/* Category row: Category picker + Parent category picker side by side */}
+      <div className="flex gap-3">
+        <div className="flex-1">
+          <CategoryCombobox
+            id="category"
+            label="Category"
+            value={categoryId}
+            onChange={setCategoryId}
+            categories={categories}
+            onCreateCategory={handleCreateCategory}
+            allowCreate
+            placeholder="Select or create…"
+          />
+          {errors.categoryError && (
+            <p id="category-error" role="alert" className="mt-1 text-sm text-destructive">
+              {errors.categoryError}
+            </p>
+          )}
+        </div>
+
+        <div className="flex-1">
+          <CategoryCombobox
+            id="parent-category"
+            label="Parent category"
+            value={parentCategoryId}
+            onChange={setParentCategoryId}
+            categories={categories}
+            placeholder="None (root)"
+          />
+        </div>
+      </div>
+
       <div className="flex flex-col gap-1">
-        <label htmlFor="slug" className="text-sm font-medium">
-          Slug
+        <label htmlFor="leaf-slug" className="text-sm font-medium">
+          Prompt name
         </label>
         <Input
-          id="slug"
-          value={slug}
-          onChange={(e) => setSlug(e.target.value)}
-          placeholder="/sales/screening/first-lead"
+          id="leaf-slug"
+          value={leafSlug}
+          onChange={(e) => setLeafSlug(e.target.value)}
+          placeholder="first-lead"
           required
-          aria-describedby={errors.slugError ? "slug-error" : undefined}
+          aria-describedby={errors.leafSlugError ? "leaf-slug-error" : undefined}
         />
-        {errors.slugError && (
-          <p id="slug-error" role="alert" className="text-sm text-destructive">
-            {errors.slugError}
+        {errors.leafSlugError && (
+          <p id="leaf-slug-error" role="alert" className="text-sm text-destructive">
+            {errors.leafSlugError}
           </p>
         )}
       </div>
@@ -145,7 +175,7 @@ export function CreatePromptForm() {
         </p>
       )}
 
-      <Button type="submit" disabled={mutation.isPending}>
+      <Button type="submit" disabled={mutation.isPending || !categoryId}>
         {mutation.isPending ? "Creating…" : "Create prompt"}
       </Button>
     </form>
