@@ -7,7 +7,7 @@ from alembic import context
 
 from app.core.config import get_settings
 from app.db.base import Base
-from app.models import prompt  # noqa: F401  (registers PromptVersion on Base.metadata)
+from app.models import category, prompt  # noqa: F401  (registers models on Base.metadata)
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.

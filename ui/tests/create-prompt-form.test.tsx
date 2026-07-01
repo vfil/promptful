@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react"
+import { render, screen, waitFor, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { describe, it, expect, vi, beforeEach } from "vitest"
@@ -13,7 +13,10 @@ vi.mock("sonner", () => ({
 
 function renderForm() {
   const queryClient = new QueryClient({
-    defaultOptions: { mutations: { retry: false } },
+    defaultOptions: {
+      queries: { retry: false },
+      mutations: { retry: false },
+    },
   })
   return render(
     <QueryClientProvider client={queryClient}>
@@ -31,7 +34,12 @@ describe("CreatePromptForm", () => {
     const user = userEvent.setup()
     renderForm()
 
-    await user.type(screen.getByLabelText("Slug"), "/my/prompt")
+    // Wait for categories to load, then open the Category combobox
+    await waitFor(() => screen.getByRole("combobox", { name: "Category" }))
+    await user.click(screen.getByRole("combobox", { name: "Category" }))
+    await user.click(await screen.findByText("/sales"))
+
+    await user.type(screen.getByLabelText("Prompt name"), "my-prompt")
     await user.type(screen.getByLabelText("Text"), "hello world")
     await user.click(screen.getByRole("button", { name: "Create prompt" }))
 
@@ -39,17 +47,16 @@ describe("CreatePromptForm", () => {
     await waitFor(() => {
       expect(toast.success).toHaveBeenCalledWith("Prompt created")
     })
-    expect(screen.getByLabelText("Slug")).toHaveValue("")
+    expect(screen.getByLabelText("Prompt name")).toHaveValue("")
     expect(screen.getByLabelText("Text")).toHaveValue("")
   })
 
-  it("shows inline slug error on 409 conflict", async () => {
+  it("shows inline leaf-slug error on 409 conflict", async () => {
     server.use(
       http.post("http://localhost:8000/prompt/create", () =>
         HttpResponse.json(
           {
-            detail:
-              "slug '/my/prompt' already has a live version; use POST /prompt/{id} to update it",
+            detail: "a prompt 'my-prompt' already exists in this category; use POST /prompt/{id} to update it",
           },
           { status: 409 }
         )
@@ -59,17 +66,18 @@ describe("CreatePromptForm", () => {
     const user = userEvent.setup()
     renderForm()
 
-    await user.type(screen.getByLabelText("Slug"), "/my/prompt")
+    await waitFor(() => screen.getByRole("combobox", { name: "Category" }))
+    await user.click(screen.getByRole("combobox", { name: "Category" }))
+    await user.click(await screen.findByText("/sales"))
+
+    await user.type(screen.getByLabelText("Prompt name"), "my-prompt")
     await user.type(screen.getByLabelText("Text"), "hello world")
     await user.click(screen.getByRole("button", { name: "Create prompt" }))
 
     await waitFor(() => {
-      expect(screen.getByRole("alert")).toHaveTextContent(
-        "already has a live version"
-      )
+      expect(screen.getByRole("alert")).toHaveTextContent("already exists in this category")
     })
-    // Error is associated with the slug input, not the text area
-    expect(screen.getByRole("alert").id).toBe("slug-error")
+    expect(screen.getByRole("alert").id).toBe("leaf-slug-error")
   })
 
   it("shows inline text error on 422 Jinja2 syntax failure", async () => {
@@ -95,7 +103,11 @@ describe("CreatePromptForm", () => {
     const user = userEvent.setup()
     renderForm()
 
-    await user.type(screen.getByLabelText("Slug"), "/my/prompt")
+    await waitFor(() => screen.getByRole("combobox", { name: "Category" }))
+    await user.click(screen.getByRole("combobox", { name: "Category" }))
+    await user.click(await screen.findByText("/sales"))
+
+    await user.type(screen.getByLabelText("Prompt name"), "my-prompt")
     await user.type(screen.getByLabelText("Text"), "bad template")
     await user.click(screen.getByRole("button", { name: "Create prompt" }))
 
@@ -107,7 +119,7 @@ describe("CreatePromptForm", () => {
     expect(screen.getByRole("alert").id).toBe("text-error")
   })
 
-  it("shows inline slug error on 422 slug format failure", async () => {
+  it("shows inline leaf-slug error on 422 leaf_slug format failure", async () => {
     server.use(
       http.post("http://localhost:8000/prompt/create", () =>
         HttpResponse.json(
@@ -115,9 +127,9 @@ describe("CreatePromptForm", () => {
             detail: [
               {
                 type: "value_error",
-                loc: ["body", "slug"],
-                msg: "Value error, slug must look like a URL path: lowercase letters, digits and hyphens per segment",
-                input: "bad_slug",
+                loc: ["body", "leaf_slug"],
+                msg: "Value error, leaf_slug must be lowercase letters, digits and hyphens only",
+                input: "Bad/Slug",
                 url: "",
               },
             ],
@@ -130,15 +142,38 @@ describe("CreatePromptForm", () => {
     const user = userEvent.setup()
     renderForm()
 
-    await user.type(screen.getByLabelText("Slug"), "bad_slug")
+    await waitFor(() => screen.getByRole("combobox", { name: "Category" }))
+    await user.click(screen.getByRole("combobox", { name: "Category" }))
+    await user.click(await screen.findByText("/sales"))
+
+    await user.type(screen.getByLabelText("Prompt name"), "Bad/Slug")
     await user.type(screen.getByLabelText("Text"), "hello world")
     await user.click(screen.getByRole("button", { name: "Create prompt" }))
 
     await waitFor(() => {
       expect(screen.getByRole("alert")).toHaveTextContent(
-        "slug must look like a URL path"
+        "leaf_slug must be lowercase letters"
       )
     })
-    expect(screen.getByRole("alert").id).toBe("slug-error")
+    expect(screen.getByRole("alert").id).toBe("leaf-slug-error")
+  })
+
+  it("creates a new category inline and selects it", async () => {
+    const user = userEvent.setup()
+    renderForm()
+
+    await waitFor(() => screen.getByRole("combobox", { name: "Category" }))
+    await user.click(screen.getByRole("combobox", { name: "Category" }))
+
+    // Type a new slug_segment that doesn't exist yet
+    await user.type(screen.getByPlaceholderText("Search or type slug…"), "engineering")
+
+    // Click the "Create" option
+    await user.click(await screen.findByText(/Create "engineering"/))
+
+    // The newly created category should be selected
+    await waitFor(() => {
+      expect(screen.getByRole("combobox", { name: "Category" })).toHaveTextContent("/engineering")
+    })
   })
 })

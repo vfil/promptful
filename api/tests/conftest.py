@@ -23,10 +23,11 @@ test_session_factory = async_sessionmaker(bind=test_engine, expire_on_commit=Fal
 
 
 @pytest_asyncio.fixture(autouse=True)
-async def _reset_prompts_table():
+async def _reset_tables():
     yield
     async with test_engine.begin() as connection:
-        await connection.execute(text("TRUNCATE TABLE prompts"))
+        # prompts references categories, so truncate prompts first.
+        await connection.execute(text("TRUNCATE TABLE prompts, categories RESTART IDENTITY CASCADE"))
 
 
 @pytest_asyncio.fixture
