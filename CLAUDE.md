@@ -14,8 +14,9 @@ code yet. Both directories were bootstrapped from another project, so check whet
 `api/docker-compose.yml` comments referencing `doc_import`, snapshot seeding, or ADR docs) actually apply
 before trusting them — they may be stale leftovers rather than this project's design.
 
-Repo layout: `api/` is the backend, `ui/` is the frontend. There is no root-level package manager — each
-side is built and run independently.
+Repo layout: `api/` is the backend, `ui/` is the frontend, `sdk/` is a Python client library for
+third-party developers who want to fetch prompts from their own code. There is no root-level package
+manager — each side is built and run independently.
 
 ## Backend (`api/`)
 
@@ -65,6 +66,22 @@ pnpm typecheck    # tsc --noEmit, standalone (no watch)
 
 `pnpm dev` type-checks in parallel with the dev server — a red squiggly in the terminal from the `tsc`
 process is a real type error even if the Next.js server itself doesn't fail to compile.
+
+## SDK (`sdk/`)
+
+A thin, read-only, sync Python client for the API (`Client.get_prompt`, `.get_prompts`, `.list_prompts`),
+dependency-managed with `uv`, src-layout (`src/promptful/`). Ships as a git/path dependency for now — not
+published to PyPI. Full usage docs: [sdk/README.md](sdk/README.md).
+
+```bash
+cd sdk
+uv sync                       # install dependencies into .venv
+uv run pytest                 # full suite — needs api/'s docker-compose Postgres + app_test migrated
+```
+
+Its own test suite boots the real FastAPI app via uvicorn on a real port (not a mock, not ASGITransport —
+the SDK's `Client` is sync-only, and `ASGITransport` only supports async clients), pointed at the same
+`app_test` database `api/tests` uses. See `sdk/tests/conftest.py`.
 
 ## Domain model (target design)
 

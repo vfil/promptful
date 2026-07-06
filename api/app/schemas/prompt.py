@@ -3,7 +3,7 @@ import uuid
 from datetime import datetime
 
 import jinja2
-from pydantic import BaseModel, ConfigDict, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.schemas.category import SLUG_SEGMENT_PATTERN, SLUG_SEGMENT_FORMAT_ERROR
 
@@ -79,3 +79,18 @@ class PromptSummary(BaseModel):
     category_id: uuid.UUID
     version: int
     created_at: datetime
+
+
+# Mirrors the existing `_LIST_SAFETY_LIMIT` used by GET /prompts.
+MAX_BATCH_SLUGS = 500
+
+
+class PromptBatchRequest(BaseModel):
+    slugs: list[str] = Field(min_length=1, max_length=MAX_BATCH_SLUGS)
+
+
+class PromptBatchItem(BaseModel):
+    """One requested slug's outcome. `prompt` is None if it has no Live Version."""
+
+    slug: str
+    prompt: PromptVersionRead | None

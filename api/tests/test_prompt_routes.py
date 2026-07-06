@@ -318,3 +318,91 @@ async def test_list_prompts_orders_by_full_slug_not_category_path_then_leaf_slug
     response = await client.get("/prompts")
 
     assert [p["slug"] for p in response.json()] == ["/ab-cd/y", "/ab/x"]
+
+
+# --- Batch ----------------------------------------------------------------
+
+
+async def test_batch_returns_full_content_in_request_order(client: AsyncClient) -> None:
+    cat = await _make_category(client)
+    await _create(client, cat["id"], leaf_slug="alpha", text="A {{ x }}")
+    await _create(client, cat["id"], leaf_slug="zeta", text="Z {{ y }}")
+
+    response = await client.post(
+        "/prompts/batch", json={"slugs": ["/sales/zeta", "/sales/alpha"]}
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert [item["slug"] for item in body] == ["/sales/zeta", "/sales/alpha"]
+    assert body[0]["prompt"]["text"] == "Z {{ y }}"
+    assert body[1]["prompt"]["text"] == "A {{ x }}"
+
+
+async def test_batch_marks_missing_slugs_with_null_prompt(client: AsyncClient) -> None:
+    cat = await _make_category(client)
+    await _create(client, cat["id"], leaf_slug="alpha")
+
+    response = await client.post(
+        "/prompts/batch",
+        json={"slugs": ["/sales/alpha", "/sales/does-not-exist", "malformed-no-category"]},
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body[0]["prompt"] is not None
+    assert body[1]["prompt"] is None
+    assert body[2]["prompt"] is None
+    assert [item["slug"] for item in body] == [
+        "/sales/alpha",
+        "/sales/does-not-exist",
+        "malformed-no-category",
+    ]
+
+
+async def test_batch_excludes_tombstoned_prompts(client: AsyncClient) -> None:
+    cat = await _make_category(client)
+    created = await _create(client, cat["id"], leaf_slug="alpha")
+    deleted = created.json()
+    await client.delete(f"/prompt/{deleted['id']}")
+
+    response = await client.post("/prompts/batch", json={"slugs": ["/sales/alpha"]})
+
+    assert response.json()[0]["prompt"] is None
+
+
+async def test_batch_returns_only_the_latest_version(client: AsyncClient) -> None:
+    cat = await _make_category(client)
+    v1 = (await _create(client, cat["id"], leaf_slug="alpha")).json()
+    v2 = (await client.post(f"/prompt/{v1['id']}", json={"text": "v2"})).json()
+
+    response = await client.post("/prompts/batch", json={"slugs": ["/sales/alpha"]})
+
+    prompt = response.json()[0]["prompt"]
+    assert prompt["id"] == v2["id"]
+    assert prompt["version"] == 2
+
+
+async def test_batch_repeats_duplicate_slugs_as_separate_entries(client: AsyncClient) -> None:
+    cat = await _make_category(client)
+    await _create(client, cat["id"], leaf_slug="alpha")
+
+    response = await client.post(
+        "/prompts/batch", json={"slugs": ["/sales/alpha", "/sales/alpha"]}
+    )
+
+    body = response.json()
+    assert len(body) == 2
+    assert body[0]["prompt"]["slug"] == body[1]["prompt"]["slug"] == "/sales/alpha"
+
+
+async def test_batch_empty_slugs_returns_422(client: AsyncClient) -> None:
+    response = await client.post("/prompts/batch", json={"slugs": []})
+    assert response.status_code == 422
+
+
+async def test_batch_over_max_slugs_returns_422(client: AsyncClient) -> None:
+    response = await client.post(
+        "/prompts/batch", json={"slugs": [f"/sales/p{i}" for i in range(501)]}
+    )
+    assert response.status_code == 422

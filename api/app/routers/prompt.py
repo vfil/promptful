@@ -1,7 +1,7 @@
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import select
+from sqlalchemy import select, tuple_
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased, selectinload
@@ -9,7 +9,14 @@ from sqlalchemy.orm import aliased, selectinload
 from app.db.session import get_db
 from app.models.category import Category
 from app.models.prompt import PromptVersion
-from app.schemas.prompt import PromptCreate, PromptSummary, PromptUpdate, PromptVersionRead
+from app.schemas.prompt import (
+    PromptBatchItem,
+    PromptBatchRequest,
+    PromptCreate,
+    PromptSummary,
+    PromptUpdate,
+    PromptVersionRead,
+)
 
 router = APIRouter(prefix="/prompt", tags=["prompt"])
 prompts_router = APIRouter(prefix="/prompts", tags=["prompt"])
@@ -19,6 +26,14 @@ _WITH_CATEGORY = selectinload(PromptVersion.category)
 # Safety net only — not client-facing pagination. Revisit if Prompt counts ever
 # approach this.
 _LIST_SAFETY_LIMIT = 500
+
+
+def _parse_slug(slug: str) -> tuple[str, str] | None:
+    """(category_path, leaf_slug), or None if `slug` has no category segment."""
+    last_slash = slug.rfind("/")
+    if last_slash <= 0:
+        return None
+    return slug[:last_slash], slug[last_slash + 1:]
 
 
 async def _highest_version(
@@ -147,12 +162,10 @@ async def get_prompt_by_slug(
     version: int | None = Query(default=None, ge=1),
     db: AsyncSession = Depends(get_db),
 ) -> PromptVersion:
-    # Resolve slug → (category_path, leaf_slug).
-    last_slash = slug.rfind("/")
-    if last_slash <= 0:
+    parsed = _parse_slug(slug)
+    if parsed is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "no such slug/version")
-    category_path = slug[:last_slash]
-    leaf_slug = slug[last_slash + 1:]
+    category_path, leaf_slug = parsed
 
     cat_result = await db.execute(
         select(Category).where(Category.path == category_path)
@@ -210,3 +223,60 @@ async def list_prompts(db: AsyncSession = Depends(get_db)) -> list[PromptVersion
         .limit(_LIST_SAFETY_LIMIT)
     )
     return list(result.scalars().all())
+
+
+@prompts_router.post("/batch", response_model=list[PromptBatchItem])
+async def batch_get_prompts(
+    payload: PromptBatchRequest, db: AsyncSession = Depends(get_db)
+) -> list[PromptBatchItem]:
+    """Fetch each requested slug's Live Version in one round trip.
+
+    Response order matches `slugs` (duplicates included); a slug with no Live
+    Version — malformed, unknown, or Tombstoned — gets `prompt: null` rather
+    than failing the whole batch.
+    """
+    parsed = [_parse_slug(slug) for slug in payload.slugs]
+
+    category_paths = {category_path for category_path, _ in filter(None, parsed)}
+    category_id_by_path: dict[str, uuid.UUID] = {}
+    if category_paths:
+        cat_result = await db.execute(select(Category).where(Category.path.in_(category_paths)))
+        category_id_by_path = {c.path: c.id for c in cat_result.scalars()}
+
+    pairs = {
+        (leaf_slug, category_id_by_path[category_path])
+        for category_path, leaf_slug in filter(None, parsed)
+        if category_path in category_id_by_path
+    }
+
+    live_by_pair: dict[tuple[str, uuid.UUID], PromptVersion] = {}
+    if pairs:
+        latest_per_prompt = (
+            select(PromptVersion)
+            .distinct(PromptVersion.leaf_slug, PromptVersion.category_id)
+            .where(tuple_(PromptVersion.leaf_slug, PromptVersion.category_id).in_(pairs))
+            .order_by(
+                PromptVersion.leaf_slug,
+                PromptVersion.category_id,
+                PromptVersion.version.desc(),
+            )
+            .subquery()
+        )
+        live = aliased(PromptVersion, latest_per_prompt)
+        result = await db.execute(
+            select(live).options(selectinload(live.category)).where(live.is_deleted.is_(False))
+        )
+        for row in result.scalars():
+            live_by_pair[(row.leaf_slug, row.category_id)] = row
+
+    items: list[PromptBatchItem] = []
+    for slug, parsed_slug in zip(payload.slugs, parsed):
+        row = None
+        if parsed_slug is not None:
+            category_path, leaf_slug = parsed_slug
+            category_id = category_id_by_path.get(category_path)
+            if category_id is not None:
+                row = live_by_pair.get((leaf_slug, category_id))
+        prompt = PromptVersionRead.model_validate(row) if row is not None else None
+        items.append(PromptBatchItem(slug=slug, prompt=prompt))
+    return items
