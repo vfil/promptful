@@ -1,6 +1,8 @@
 "use client"
 
 import { useState } from "react"
+import Link from "next/link"
+import { useRouter } from "next/navigation"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
@@ -56,6 +58,7 @@ export function CreatePromptForm() {
   const [text, setText] = useState("")
   const [errors, setErrors] = useState<FormErrors>({})
 
+  const router = useRouter()
   const queryClient = useQueryClient()
 
   const { data: categories = [] } = useQuery({
@@ -70,11 +73,8 @@ export function CreatePromptForm() {
     },
     onSuccess: () => {
       toast.success("Prompt created")
-      setLeafSlug("")
-      setCategoryId(null)
-      setParentCategoryId(null)
-      setText("")
-      setErrors({})
+      queryClient.invalidateQueries({ queryKey: ["prompts"] })
+      router.push("/")
     },
     onError: (err) => {
       setErrors(classifyError(err))
@@ -98,6 +98,10 @@ export function CreatePromptForm() {
       }}
       className="flex flex-col gap-4 max-w-xl mx-auto mt-16 px-4"
     >
+      <Link href="/" className="text-sm text-muted-foreground hover:underline">
+        ← Back to prompts
+      </Link>
+
       {/* Category row: Category picker + Parent category picker side by side */}
       <div className="flex gap-3">
         <div className="flex-1">

@@ -1,5 +1,5 @@
-import { CreatePromptForm } from "@/components/create-prompt-form"
+import { PromptList } from "@/components/prompt-list"
 
 export default function Home() {
-  return <CreatePromptForm />
+  return <PromptList />
 }

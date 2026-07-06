@@ -4,16 +4,21 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
+from sqlalchemy.orm import aliased, selectinload
 
 from app.db.session import get_db
 from app.models.category import Category
 from app.models.prompt import PromptVersion
-from app.schemas.prompt import PromptCreate, PromptUpdate, PromptVersionRead
+from app.schemas.prompt import PromptCreate, PromptSummary, PromptUpdate, PromptVersionRead
 
 router = APIRouter(prefix="/prompt", tags=["prompt"])
+prompts_router = APIRouter(prefix="/prompts", tags=["prompt"])
 
 _WITH_CATEGORY = selectinload(PromptVersion.category)
+
+# Safety net only — not client-facing pagination. Revisit if Prompt counts ever
+# approach this.
+_LIST_SAFETY_LIMIT = 500
 
 
 async def _highest_version(
@@ -175,3 +180,33 @@ async def get_prompt_by_slug(
     if current is None or current.is_deleted:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "slug has no live version")
     return current
+
+
+@prompts_router.get("", response_model=list[PromptSummary])
+async def list_prompts(db: AsyncSession = Depends(get_db)) -> list[PromptVersion]:
+    """One row per Prompt (its Live Version only), alphabetical by slug.
+
+    Prompts whose highest version is a Tombstone have no Live Version and are
+    excluded, per ADR-less but CONTEXT.md-defined semantics.
+    """
+    latest_per_prompt = (
+        select(PromptVersion)
+        .distinct(PromptVersion.leaf_slug, PromptVersion.category_id)
+        .order_by(
+            PromptVersion.leaf_slug,
+            PromptVersion.category_id,
+            PromptVersion.version.desc(),
+        )
+        .subquery()
+    )
+    live = aliased(PromptVersion, latest_per_prompt)
+
+    result = await db.execute(
+        select(live)
+        .options(selectinload(live.category))
+        .join(Category, live.category_id == Category.id)
+        .where(live.is_deleted.is_(False))
+        .order_by(Category.path + "/" + live.leaf_slug)
+        .limit(_LIST_SAFETY_LIMIT)
+    )
+    return list(result.scalars().all())

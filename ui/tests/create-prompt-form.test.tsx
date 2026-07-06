@@ -11,6 +11,11 @@ vi.mock("sonner", () => ({
   Toaster: () => null,
 }))
 
+const pushMock = vi.fn()
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ push: pushMock }),
+}))
+
 function renderForm() {
   const queryClient = new QueryClient({
     defaultOptions: {
@@ -30,7 +35,7 @@ describe("CreatePromptForm", () => {
     vi.clearAllMocks()
   })
 
-  it("shows success toast and clears form after successful create", async () => {
+  it("shows success toast and redirects to the prompt list after successful create", async () => {
     const user = userEvent.setup()
     renderForm()
 
@@ -47,8 +52,7 @@ describe("CreatePromptForm", () => {
     await waitFor(() => {
       expect(toast.success).toHaveBeenCalledWith("Prompt created")
     })
-    expect(screen.getByLabelText("Prompt name")).toHaveValue("")
-    expect(screen.getByLabelText("Text")).toHaveValue("")
+    expect(pushMock).toHaveBeenCalledWith("/")
   })
 
   it("shows inline leaf-slug error on 409 conflict", async () => {

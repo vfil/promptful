@@ -253,3 +253,68 @@ async def test_slug_reflects_nested_category_path(client: AsyncClient) -> None:
     created = (await _create(client, child["id"], leaf_slug="first-lead")).json()
 
     assert created["slug"] == "/sales/screening/first-lead"
+
+
+# --- List -----------------------------------------------------------------
+
+
+async def test_list_prompts_returns_empty_list_when_none_exist(client: AsyncClient) -> None:
+    response = await client.get("/prompts")
+    assert response.status_code == 200
+    assert response.json() == []
+
+
+async def test_list_prompts_returns_one_row_per_prompt_sorted_alphabetically(
+    client: AsyncClient,
+) -> None:
+    cat = await _make_category(client)
+    await _create(client, cat["id"], leaf_slug="zeta")
+    await _create(client, cat["id"], leaf_slug="alpha")
+
+    response = await client.get("/prompts")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert [p["slug"] for p in body] == ["/sales/alpha", "/sales/zeta"]
+    assert "text" not in body[0]
+    assert "is_deleted" not in body[0]
+
+
+async def test_list_prompts_excludes_tombstoned_prompts(client: AsyncClient) -> None:
+    cat = await _make_category(client)
+    live = (await _create(client, cat["id"], leaf_slug="alive")).json()
+    deleted = (await _create(client, cat["id"], leaf_slug="dead")).json()
+    await client.delete(f"/prompt/{deleted['id']}")
+
+    response = await client.get("/prompts")
+
+    slugs = [p["slug"] for p in response.json()]
+    assert slugs == ["/sales/alive"]
+
+
+async def test_list_prompts_returns_only_the_latest_version(client: AsyncClient) -> None:
+    cat = await _make_category(client)
+    v1 = (await _create(client, cat["id"], leaf_slug="first-lead")).json()
+    v2 = (await client.post(f"/prompt/{v1['id']}", json={"text": "v2"})).json()
+
+    response = await client.get("/prompts")
+
+    body = response.json()
+    assert len(body) == 1
+    assert body[0]["id"] == v2["id"]
+    assert body[0]["version"] == 2
+
+
+async def test_list_prompts_orders_by_full_slug_not_category_path_then_leaf_slug(
+    client: AsyncClient,
+) -> None:
+    """"/ab-cd/y" sorts before "/ab/x" as a string (hyphen < slash in ASCII),
+    even though the tuple (path, leaf_slug) would order "/ab" before "/ab-cd"."""
+    cat_ab = await _make_category(client, "ab")
+    cat_ab_cd = await _make_category(client, "ab-cd")
+    await _create(client, cat_ab["id"], leaf_slug="x")
+    await _create(client, cat_ab_cd["id"], leaf_slug="y")
+
+    response = await client.get("/prompts")
+
+    assert [p["slug"] for p in response.json()] == ["/ab-cd/y", "/ab/x"]

@@ -15,6 +15,10 @@ export const handlers = [
     return HttpResponse.json([CATEGORY])
   }),
 
+  http.get(`${API_URL}/prompts`, () => {
+    return HttpResponse.json([])
+  }),
+
   http.post(`${API_URL}/categories`, async ({ request }) => {
     const body = (await request.json()) as { slug_segment: string; parent_id?: string }
     return HttpResponse.json(

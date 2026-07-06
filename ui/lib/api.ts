@@ -19,6 +19,15 @@ export interface PromptVersion {
   created_at: string
 }
 
+export interface PromptSummary {
+  id: string
+  slug: string
+  leaf_slug: string
+  category_id: string
+  version: number
+  created_at: string
+}
+
 export interface ValidationError {
   loc: string[]
   msg: string
@@ -57,6 +66,10 @@ export async function createCategory(
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ slug_segment, ...(parent_id ? { parent_id } : {}) }),
   })
+}
+
+export async function listPrompts(): Promise<PromptSummary[]> {
+  return apiFetch<PromptSummary[]>("/prompts")
 }
 
 export async function createPrompt(

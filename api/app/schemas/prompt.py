@@ -66,3 +66,16 @@ class PromptVersionRead(BaseModel):
     text: str
     is_deleted: bool
     created_at: datetime
+
+
+class PromptSummary(BaseModel):
+    """One row per distinct Prompt (its Live Version), for list views. No `text`."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    slug: str
+    leaf_slug: str
+    category_id: uuid.UUID
+    version: int
+    created_at: datetime
