@@ -25,10 +25,11 @@ async def _create(
     category_id: str,
     leaf_slug: str = "first-lead",
     text: str = "Hi {{ name }}",
+    role: str = "user",
 ) -> object:
     return await client.post(
         "/prompt/create",
-        json={"leaf_slug": leaf_slug, "category_id": category_id, "text": text},
+        json={"leaf_slug": leaf_slug, "category_id": category_id, "role": role, "text": text},
     )
 
 
@@ -37,15 +38,31 @@ async def _create(
 
 async def test_create_returns_201_with_version_1(client: AsyncClient) -> None:
     cat = await _make_category(client)
-    response = await _create(client, cat["id"])
+    response = await _create(client, cat["id"], role="system")
     assert response.status_code == 201
     body = response.json()
     assert body["leaf_slug"] == "first-lead"
     assert body["category_id"] == cat["id"]
     assert body["slug"] == "/sales/first-lead"
     assert body["version"] == 1
+    assert body["role"] == "system"
     assert body["is_deleted"] is False
     assert body["text"] == "Hi {{ name }}"
+
+
+async def test_create_missing_role_returns_422(client: AsyncClient) -> None:
+    cat = await _make_category(client)
+    response = await client.post(
+        "/prompt/create",
+        json={"leaf_slug": "first-lead", "category_id": cat["id"], "text": "Hi"},
+    )
+    assert response.status_code == 422
+
+
+async def test_create_invalid_role_returns_422(client: AsyncClient) -> None:
+    cat = await _make_category(client)
+    response = await _create(client, cat["id"], role="narrator")
+    assert response.status_code == 422
 
 
 async def test_create_duplicate_prompt_returns_409(client: AsyncClient) -> None:
@@ -77,7 +94,7 @@ async def test_create_invalid_jinja2_returns_422(client: AsyncClient) -> None:
 
 async def test_update_increments_version_and_returns_200(client: AsyncClient) -> None:
     cat = await _make_category(client)
-    created = (await _create(client, cat["id"])).json()
+    created = (await _create(client, cat["id"], role="assistant")).json()
 
     response = await client.post(f"/prompt/{created['id']}", json={"text": "Hi {{ name }}, v2"})
 
@@ -87,6 +104,21 @@ async def test_update_increments_version_and_returns_200(client: AsyncClient) ->
     assert body["slug"] == created["slug"]
     assert body["text"] == "Hi {{ name }}, v2"
     assert body["id"] != created["id"]
+    assert body["role"] == "assistant"
+
+
+async def test_update_ignores_role_in_payload(client: AsyncClient) -> None:
+    """role is immutable (ADR-0007) — PromptUpdate has no role field, so any role
+    sent in the update payload is silently ignored rather than changing the Prompt."""
+    cat = await _make_category(client)
+    created = (await _create(client, cat["id"], role="system")).json()
+
+    response = await client.post(
+        f"/prompt/{created['id']}", json={"text": "v2", "role": "assistant"}
+    )
+
+    assert response.status_code == 200
+    assert response.json()["role"] == "system"
 
 
 async def test_update_unknown_id_returns_404(client: AsyncClient) -> None:
@@ -118,7 +150,7 @@ async def test_update_invalid_jinja2_returns_422(client: AsyncClient) -> None:
 
 async def test_delete_returns_tombstone_with_200(client: AsyncClient) -> None:
     cat = await _make_category(client)
-    v1 = (await _create(client, cat["id"])).json()
+    v1 = (await _create(client, cat["id"], role="system")).json()
 
     response = await client.delete(f"/prompt/{v1['id']}")
 
@@ -127,6 +159,7 @@ async def test_delete_returns_tombstone_with_200(client: AsyncClient) -> None:
     assert body["is_deleted"] is True
     assert body["version"] == 2
     assert body["id"] != v1["id"]
+    assert body["role"] == "system"
 
 
 async def test_delete_unknown_id_returns_404(client: AsyncClient) -> None:
@@ -325,8 +358,8 @@ async def test_list_prompts_orders_by_full_slug_not_category_path_then_leaf_slug
 
 async def test_batch_returns_full_content_in_request_order(client: AsyncClient) -> None:
     cat = await _make_category(client)
-    await _create(client, cat["id"], leaf_slug="alpha", text="A {{ x }}")
-    await _create(client, cat["id"], leaf_slug="zeta", text="Z {{ y }}")
+    await _create(client, cat["id"], leaf_slug="alpha", text="A {{ x }}", role="system")
+    await _create(client, cat["id"], leaf_slug="zeta", text="Z {{ y }}", role="user")
 
     response = await client.post(
         "/prompts/batch", json={"slugs": ["/sales/zeta", "/sales/alpha"]}
@@ -336,7 +369,9 @@ async def test_batch_returns_full_content_in_request_order(client: AsyncClient) 
     body = response.json()
     assert [item["slug"] for item in body] == ["/sales/zeta", "/sales/alpha"]
     assert body[0]["prompt"]["text"] == "Z {{ y }}"
+    assert body[0]["prompt"]["role"] == "user"
     assert body[1]["prompt"]["text"] == "A {{ x }}"
+    assert body[1]["prompt"]["role"] == "system"
 
 
 async def test_batch_marks_missing_slugs_with_null_prompt(client: AsyncClient) -> None:

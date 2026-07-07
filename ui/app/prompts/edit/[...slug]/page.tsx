@@ -43,6 +43,7 @@ export default function EditPrompt() {
       slug={prompt.slug}
       leafSlug={prompt.leaf_slug}
       categoryId={prompt.category_id}
+      role={prompt.role}
       initialText={prompt.text}
     />
   )

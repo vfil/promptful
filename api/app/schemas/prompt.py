@@ -1,6 +1,7 @@
 import re
 import uuid
 from datetime import datetime
+from typing import Literal
 
 import jinja2
 from pydantic import BaseModel, ConfigDict, Field, field_validator
@@ -9,6 +10,12 @@ from app.schemas.category import SLUG_SEGMENT_PATTERN, SLUG_SEGMENT_FORMAT_ERROR
 
 # Leaf slug follows the same format as a Category Slug Segment.
 LEAF_SLUG_PATTERN = SLUG_SEGMENT_PATTERN
+
+# Which LLM message position `text` fills. Fixed at creation, never accepted by
+# PromptUpdate (ADR-0007). Keep in sync with app.models.prompt.PROMPT_ROLES and
+# the migration CHECK.
+PROMPT_ROLES = ("system", "user", "assistant")
+PromptRole = Literal["system", "user", "assistant"]
 
 LEAF_SLUG_FORMAT_ERROR = (
     "leaf_slug must be lowercase letters, digits and hyphens only, "
@@ -33,6 +40,7 @@ def validate_jinja2_text(value: str) -> str:
 class PromptCreate(BaseModel):
     leaf_slug: str
     category_id: uuid.UUID
+    role: PromptRole
     text: str
 
     @field_validator("leaf_slug")
@@ -63,6 +71,7 @@ class PromptVersionRead(BaseModel):
     leaf_slug: str
     category_id: uuid.UUID
     version: int
+    role: PromptRole
     text: str
     is_deleted: bool
     created_at: datetime

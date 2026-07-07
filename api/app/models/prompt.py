@@ -13,6 +13,10 @@ from app.models.category import Category
 # Keep in sync with app.schemas.prompt.LEAF_SLUG_PATTERN and the migration CHECK.
 LEAF_SLUG_REGEX = r"^[a-z0-9]+(-[a-z0-9]+)*$"
 
+# Which LLM message position `text` fills. Fixed at creation, like leaf_slug/category_id
+# (ADR-0007). Keep in sync with app.schemas.prompt.PROMPT_ROLES and the migration CHECK.
+PROMPT_ROLES = ("system", "user", "assistant")
+
 
 class PromptVersion(Base):
     """One immutable Version row for a Prompt. See /CONTEXT.md."""
@@ -27,6 +31,9 @@ class PromptVersion(Base):
             f"leaf_slug ~ '{LEAF_SLUG_REGEX}'", name="ck_prompts_leaf_slug_format"
         ),
         CheckConstraint("version >= 1", name="ck_prompts_version_positive"),
+        CheckConstraint(
+            "role IN ('system', 'user', 'assistant')", name="ck_prompts_role_values"
+        ),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(
@@ -42,6 +49,7 @@ class PromptVersion(Base):
         nullable=False,
     )
     version: Mapped[int] = mapped_column(nullable=False)
+    role: Mapped[str] = mapped_column(nullable=False)
     text: Mapped[str] = mapped_column(Text, nullable=False)
     is_deleted: Mapped[bool] = mapped_column(
         nullable=False, default=False, server_default=sql_text("false")

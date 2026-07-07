@@ -145,6 +145,7 @@ def _prompt_from_json(data: dict) -> Prompt:
         leaf_slug=data["leaf_slug"],
         category_id=data["category_id"],
         version=data["version"],
+        role=data["role"],
         text=data["text"],
         is_deleted=data["is_deleted"],
         created_at=datetime.fromisoformat(data["created_at"]),

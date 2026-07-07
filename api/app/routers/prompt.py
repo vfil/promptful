@@ -117,6 +117,7 @@ async def create_prompt(
         leaf_slug=payload.leaf_slug,
         category_id=payload.category_id,
         version=next_version,
+        role=payload.role,
         text=payload.text,
     )
     return await _insert_version(db, new_version)
@@ -132,6 +133,7 @@ async def update_prompt(
         leaf_slug=target.leaf_slug,
         category_id=target.category_id,
         version=target.version + 1,
+        role=target.role,
         text=payload.text,
     )
     return await _insert_version(db, new_version)
@@ -145,6 +147,7 @@ async def delete_prompt(id: uuid.UUID, db: AsyncSession = Depends(get_db)) -> Pr
         leaf_slug=target.leaf_slug,
         category_id=target.category_id,
         version=target.version + 1,
+        role=target.role,
         text="",
         is_deleted=True,
     )

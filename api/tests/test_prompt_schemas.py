@@ -29,20 +29,25 @@ INVALID_LEAF_SLUGS = [
 
 @pytest.mark.parametrize("leaf_slug", VALID_LEAF_SLUGS)
 def test_prompt_create_accepts_valid_leaf_slug(leaf_slug: str) -> None:
-    prompt = PromptCreate(leaf_slug=leaf_slug, category_id=CATEGORY_ID, text="hello {{ name }}")
+    prompt = PromptCreate(
+        leaf_slug=leaf_slug, category_id=CATEGORY_ID, role="user", text="hello {{ name }}"
+    )
     assert prompt.leaf_slug == leaf_slug
 
 
 @pytest.mark.parametrize("leaf_slug", INVALID_LEAF_SLUGS)
 def test_prompt_create_rejects_invalid_leaf_slug(leaf_slug: str) -> None:
     with pytest.raises(ValidationError):
-        PromptCreate(leaf_slug=leaf_slug, category_id=CATEGORY_ID, text="hello {{ name }}")
+        PromptCreate(
+            leaf_slug=leaf_slug, category_id=CATEGORY_ID, role="user", text="hello {{ name }}"
+        )
 
 
 def test_prompt_create_accepts_jinja2_syntax() -> None:
     prompt = PromptCreate(
         leaf_slug="first-lead",
         category_id=CATEGORY_ID,
+        role="user",
         text="Hi {{ name }}, {% if vip %}VIP{% endif %}",
     )
     assert "{{ name }}" in prompt.text
@@ -50,7 +55,25 @@ def test_prompt_create_accepts_jinja2_syntax() -> None:
 
 def test_prompt_create_rejects_malformed_jinja2() -> None:
     with pytest.raises(ValidationError):
-        PromptCreate(leaf_slug="first-lead", category_id=CATEGORY_ID, text="Hi {{ name")
+        PromptCreate(
+            leaf_slug="first-lead", category_id=CATEGORY_ID, role="user", text="Hi {{ name"
+        )
+
+
+# --- role -----------------------------------------------------------------
+
+
+@pytest.mark.parametrize("role", ["system", "user", "assistant"])
+def test_prompt_create_accepts_valid_role(role: str) -> None:
+    prompt = PromptCreate(leaf_slug="first-lead", category_id=CATEGORY_ID, role=role, text="hi")
+    assert prompt.role == role
+
+
+def test_prompt_create_rejects_invalid_role() -> None:
+    with pytest.raises(ValidationError):
+        PromptCreate(
+            leaf_slug="first-lead", category_id=CATEGORY_ID, role="narrator", text="hi"
+        )
 
 
 def test_prompt_update_accepts_jinja2_syntax() -> None:

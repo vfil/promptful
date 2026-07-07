@@ -7,10 +7,12 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Textarea } from "@/components/ui/textarea"
 import { CategoryCombobox } from "@/components/category-combobox"
+import { PromptTextEditor } from "@/components/prompt-text-editor"
+import { PromptGuidancePanel } from "@/components/prompt-guidance-panel"
 import {
   ApiCallError,
+  type PromptRole,
   type ValidationError,
   createCategory,
   createPrompt,
@@ -27,6 +29,7 @@ interface PromptFormProps {
   slug?: string
   leafSlug?: string
   categoryId?: string
+  role?: PromptRole
   initialText?: string
 }
 
@@ -75,6 +78,7 @@ export function PromptForm(props: PromptFormProps) {
   const [leafSlug, setLeafSlug] = useState(props.leafSlug ?? "")
   const [categoryId, setCategoryId] = useState<string | null>(props.categoryId ?? null)
   const [parentCategoryId, setParentCategoryId] = useState<string | null>(null)
+  const [role, setRole] = useState<PromptRole | "">(props.role ?? "")
   const [text, setText] = useState(props.initialText ?? "")
   const [liveId, setLiveId] = useState(props.id)
   const [errors, setErrors] = useState<FormErrors>({})
@@ -97,7 +101,8 @@ export function PromptForm(props: PromptFormProps) {
     mutationFn: () => {
       if (props.mode === "create") {
         if (!categoryId) throw new Error("Category is required")
-        return createPrompt(leafSlug, categoryId, text)
+        if (!role) throw new Error("Role is required")
+        return createPrompt(leafSlug, categoryId, role, text)
       }
       return updatePrompt(liveId!, text)
     },
@@ -132,125 +137,158 @@ export function PromptForm(props: PromptFormProps) {
   }
 
   return (
-    <form
-      onSubmit={(e) => {
-        e.preventDefault()
-        setErrors({})
-        mutation.mutate()
-      }}
-      className="flex flex-col gap-4 max-w-xl mx-auto mt-16 px-4"
-    >
-      <Link href="/" className="text-sm text-muted-foreground hover:underline">
-        ← Back to prompts
-      </Link>
+    <div className="mx-auto mt-16 flex max-w-4xl items-start gap-6 px-4">
+      <form
+        onSubmit={(e) => {
+          e.preventDefault()
+          setErrors({})
+          if (!text.trim()) {
+            setErrors({ textError: "Text is required" })
+            return
+          }
+          mutation.mutate()
+        }}
+        className="flex flex-1 flex-col gap-4"
+      >
+        <Link href="/" className="text-sm text-muted-foreground hover:underline">
+          ← Back to prompts
+        </Link>
 
-      {/* Category row: Category picker + Parent category picker side by side */}
-      <div className="flex gap-3">
-        <div className="flex-1">
-          <CategoryCombobox
-            id="category"
-            label="Category"
-            value={categoryId}
-            onChange={isUpdate ? () => {} : setCategoryId}
-            categories={categories}
-            onCreateCategory={isUpdate ? undefined : handleCreateCategory}
-            allowCreate={!isUpdate}
-            disabled={isUpdate}
-            placeholder="Select or create…"
+        {/* Category row: Category picker + Parent category picker side by side */}
+        <div className="flex gap-3">
+          <div className="flex-1">
+            <CategoryCombobox
+              id="category"
+              label="Category"
+              value={categoryId}
+              onChange={isUpdate ? () => {} : setCategoryId}
+              categories={categories}
+              onCreateCategory={isUpdate ? undefined : handleCreateCategory}
+              allowCreate={!isUpdate}
+              disabled={isUpdate}
+              placeholder="Select or create…"
+            />
+            {errors.categoryError && (
+              <p id="category-error" role="alert" className="mt-1 text-sm text-destructive">
+                {errors.categoryError}
+              </p>
+            )}
+          </div>
+
+          <div className="flex-1">
+            <CategoryCombobox
+              id="parent-category"
+              label="Parent category"
+              value={derivedParentCategoryId}
+              onChange={isUpdate ? () => {} : setParentCategoryId}
+              categories={categories}
+              disabled={isUpdate}
+              placeholder="None (root)"
+            />
+          </div>
+        </div>
+
+        <div className="flex gap-3">
+          <div className="flex-1">
+            <label htmlFor="leaf-slug" className="text-sm font-medium">
+              Prompt name
+            </label>
+            <Input
+              id="leaf-slug"
+              value={leafSlug}
+              onChange={(e) => setLeafSlug(e.target.value)}
+              placeholder="first-lead"
+              required
+              disabled={isUpdate}
+              aria-describedby={errors.leafSlugError ? "leaf-slug-error" : undefined}
+            />
+            {errors.leafSlugError && (
+              <p id="leaf-slug-error" role="alert" className="text-sm text-destructive">
+                {errors.leafSlugError}
+              </p>
+            )}
+          </div>
+
+          <div className="flex-1">
+            <label htmlFor="role" className="text-sm font-medium">
+              Role
+            </label>
+            <select
+              id="role"
+              value={role}
+              onChange={(e) => setRole(e.target.value as PromptRole)}
+              required
+              disabled={isUpdate}
+              className="h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-base shadow-xs outline-none transition-[color,box-shadow] focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50 md:text-sm dark:bg-input/30"
+            >
+              <option value="" disabled>
+                Select a role…
+              </option>
+              <option value="system">System</option>
+              <option value="user">User</option>
+              <option value="assistant">Assistant</option>
+            </select>
+          </div>
+        </div>
+
+        <div className="flex flex-col gap-1">
+          <label htmlFor="text" className="text-sm font-medium">
+            Text
+          </label>
+          <PromptTextEditor
+            value={text}
+            onChange={setText}
+            placeholder="Your prompt text — Jinja2 templates supported (e.g. {{ variable }})"
+            ariaLabel="Text"
+            ariaDescribedBy={errors.textError ? "text-error" : undefined}
+            ariaInvalid={!!errors.textError}
           />
-          {errors.categoryError && (
-            <p id="category-error" role="alert" className="mt-1 text-sm text-destructive">
-              {errors.categoryError}
+          {errors.textError && (
+            <p id="text-error" role="alert" className="text-sm text-destructive">
+              {errors.textError}
             </p>
           )}
         </div>
 
-        <div className="flex-1">
-          <CategoryCombobox
-            id="parent-category"
-            label="Parent category"
-            value={derivedParentCategoryId}
-            onChange={isUpdate ? () => {} : setParentCategoryId}
-            categories={categories}
-            disabled={isUpdate}
-            placeholder="None (root)"
-          />
-        </div>
-      </div>
-
-      <div className="flex flex-col gap-1">
-        <label htmlFor="leaf-slug" className="text-sm font-medium">
-          Prompt name
-        </label>
-        <Input
-          id="leaf-slug"
-          value={leafSlug}
-          onChange={(e) => setLeafSlug(e.target.value)}
-          placeholder="first-lead"
-          required
-          disabled={isUpdate}
-          aria-describedby={errors.leafSlugError ? "leaf-slug-error" : undefined}
-        />
-        {errors.leafSlugError && (
-          <p id="leaf-slug-error" role="alert" className="text-sm text-destructive">
-            {errors.leafSlugError}
-          </p>
-        )}
-      </div>
-
-      <div className="flex flex-col gap-1">
-        <label htmlFor="text" className="text-sm font-medium">
-          Text
-        </label>
-        <Textarea
-          id="text"
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          placeholder="Your prompt text — Jinja2 templates supported (e.g. {{ variable }})"
-          required
-          rows={8}
-          aria-describedby={errors.textError ? "text-error" : undefined}
-        />
-        {errors.textError && (
-          <p id="text-error" role="alert" className="text-sm text-destructive">
-            {errors.textError}
-          </p>
-        )}
-      </div>
-
-      {errors.conflict && (
-        <div
-          role="alert"
-          className="flex flex-col gap-2 rounded-md border border-destructive/50 bg-destructive/10 p-3 text-sm text-destructive"
-        >
-          <p>This prompt changed elsewhere. Reload to see the latest version before saving.</p>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={handleReloadLatest}
-            className="self-start"
+        {errors.conflict && (
+          <div
+            role="alert"
+            className="flex flex-col gap-2 rounded-md border border-destructive/50 bg-destructive/10 p-3 text-sm text-destructive"
           >
-            Reload latest version
-          </Button>
-        </div>
-      )}
+            <p>This prompt changed elsewhere. Reload to see the latest version before saving.</p>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={handleReloadLatest}
+              className="self-start"
+            >
+              Reload latest version
+            </Button>
+          </div>
+        )}
 
-      {errors.generic && (
-        <p role="alert" className="text-sm text-destructive">
-          {errors.generic}
-        </p>
-      )}
+        {errors.generic && (
+          <p role="alert" className="text-sm text-destructive">
+            {errors.generic}
+          </p>
+        )}
 
-      <Button type="submit" disabled={mutation.isPending || (!isUpdate && !categoryId)}>
-        {mutation.isPending
-          ? isUpdate
-            ? "Saving…"
-            : "Creating…"
-          : isUpdate
-            ? "Save changes"
-            : "Create prompt"}
-      </Button>
-    </form>
+        <Button
+          type="submit"
+          disabled={mutation.isPending || (!isUpdate && (!categoryId || !role))}
+        >
+          {mutation.isPending
+            ? isUpdate
+              ? "Saving…"
+              : "Creating…"
+            : isUpdate
+              ? "Save changes"
+              : "Create prompt"}
+        </Button>
+      </form>
+
+      <PromptGuidancePanel role={role || null} />
+    </div>
   )
 }

@@ -16,6 +16,7 @@ interface PromptRecord {
   leaf_slug: string
   category_id: string
   version: number
+  role: string
   text: string
   is_deleted: boolean
   created_at: string
@@ -31,6 +32,7 @@ const INITIAL_PROMPT: PromptRecord = {
   leaf_slug: "my-prompt",
   category_id: CATEGORY.id,
   version: 1,
+  role: "user",
   text: "hello world",
   is_deleted: false,
   created_at: "2024-01-01T00:00:00Z",
@@ -72,6 +74,7 @@ export const handlers = [
     const body = (await request.json()) as {
       leaf_slug: string
       category_id: string
+      role: string
       text: string
     }
     return HttpResponse.json(
@@ -81,6 +84,7 @@ export const handlers = [
         leaf_slug: body.leaf_slug,
         category_id: body.category_id,
         version: 1,
+        role: body.role,
         text: body.text,
         is_deleted: false,
         created_at: "2024-01-01T00:00:00Z",

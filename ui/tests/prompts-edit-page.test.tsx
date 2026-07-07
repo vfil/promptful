@@ -34,12 +34,19 @@ function renderPage(queryClient: QueryClient = newQueryClient()) {
   )
 }
 
+// The Text field is a CodeMirror editor (contenteditable), not a native
+// textarea — it exposes an accessible name via aria-label rather than
+// label[for], and has no .value, so assertions use toHaveTextContent.
+function textEditor() {
+  return screen.getByRole("textbox", { name: "Text" })
+}
+
 describe("EditPrompt page", () => {
   it("resolves the Live Version by slug and renders it pre-filled", async () => {
     renderPage()
 
     await waitFor(() => {
-      expect(screen.getByLabelText("Text")).toHaveValue("hello world")
+      expect(textEditor()).toHaveTextContent("hello world")
     })
     expect(screen.getByLabelText("Prompt name")).toHaveValue("my-prompt")
     expect(screen.getByRole("button", { name: "Save changes" })).toBeInTheDocument()
@@ -70,10 +77,10 @@ describe("EditPrompt page (revisit after the Live Version changes)", () => {
     const queryClient = newQueryClient()
 
     const { unmount } = renderPage(queryClient)
-    await waitFor(() => screen.getByLabelText("Text"))
+    await waitFor(() => textEditor())
 
-    await user.clear(screen.getByLabelText("Text"))
-    await user.type(screen.getByLabelText("Text"), "updated text")
+    await user.clear(textEditor())
+    await user.type(textEditor(), "updated text")
     await user.click(screen.getByRole("button", { name: "Save changes" }))
     await waitFor(() => expect(pushMock).toHaveBeenCalledWith("/"))
 
@@ -83,7 +90,7 @@ describe("EditPrompt page (revisit after the Live Version changes)", () => {
     renderPage(queryClient)
 
     await waitFor(() => {
-      expect(screen.getByLabelText("Text")).toHaveValue("updated text")
+      expect(textEditor()).toHaveTextContent("updated text")
     })
   })
 
@@ -91,7 +98,7 @@ describe("EditPrompt page (revisit after the Live Version changes)", () => {
     const queryClient = newQueryClient()
 
     const { unmount } = renderPage(queryClient)
-    await waitFor(() => screen.getByLabelText("Text"))
+    await waitFor(() => textEditor())
     unmount()
 
     // Someone/something else updates the same slug directly against the backend,
@@ -105,7 +112,7 @@ describe("EditPrompt page (revisit after the Live Version changes)", () => {
     renderPage(queryClient)
 
     await waitFor(() => {
-      expect(screen.getByLabelText("Text")).toHaveValue("changed by someone else")
+      expect(textEditor()).toHaveTextContent("changed by someone else")
     })
   })
 })

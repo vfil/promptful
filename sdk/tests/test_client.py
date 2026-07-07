@@ -15,10 +15,11 @@ def _create_prompt(
     category_id: str,
     leaf_slug: str = "first-lead",
     text: str = "Hi {{ name }}",
+    role: str = "user",
 ) -> dict:
     response = httpx.post(
         f"{base_url}/prompt/create",
-        json={"leaf_slug": leaf_slug, "category_id": category_id, "text": text},
+        json={"leaf_slug": leaf_slug, "category_id": category_id, "role": role, "text": text},
     )
     assert response.status_code == 201, response.text
     return response.json()
@@ -26,7 +27,7 @@ def _create_prompt(
 
 def test_get_prompt_returns_raw_text_by_slug(live_base_url: str) -> None:
     category = _make_category(live_base_url)
-    _create_prompt(live_base_url, category["id"])
+    _create_prompt(live_base_url, category["id"], role="system")
 
     with Client(base_url=live_base_url) as client:
         prompt = client.get_prompt("/sales/first-lead")
@@ -35,6 +36,7 @@ def test_get_prompt_returns_raw_text_by_slug(live_base_url: str) -> None:
     assert prompt.slug == "/sales/first-lead"
     assert prompt.leaf_slug == "first-lead"
     assert prompt.version == 1
+    assert prompt.role == "system"
     assert prompt.text == "Hi {{ name }}"
     assert prompt.is_deleted is False
 

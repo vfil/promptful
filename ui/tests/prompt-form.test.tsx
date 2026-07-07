@@ -26,6 +26,13 @@ function renderForm(ui: React.ReactElement) {
   return render(<QueryClientProvider client={queryClient}>{ui}</QueryClientProvider>)
 }
 
+// The Text field is a CodeMirror editor (contenteditable), not a native
+// textarea — it exposes an accessible name via aria-label rather than
+// label[for], and has no .value, so assertions use toHaveTextContent.
+function textEditor() {
+  return screen.getByRole("textbox", { name: "Text" })
+}
+
 describe("PromptForm (create mode)", () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -41,7 +48,8 @@ describe("PromptForm (create mode)", () => {
     await user.click(await screen.findByText("/sales"))
 
     await user.type(screen.getByLabelText("Prompt name"), "my-prompt")
-    await user.type(screen.getByLabelText("Text"), "hello world")
+    await user.selectOptions(screen.getByLabelText("Role"), "user")
+    await user.type(textEditor(), "hello world")
     await user.click(screen.getByRole("button", { name: "Create prompt" }))
 
     const { toast } = await import("sonner")
@@ -71,7 +79,8 @@ describe("PromptForm (create mode)", () => {
     await user.click(await screen.findByText("/sales"))
 
     await user.type(screen.getByLabelText("Prompt name"), "my-prompt")
-    await user.type(screen.getByLabelText("Text"), "hello world")
+    await user.selectOptions(screen.getByLabelText("Role"), "user")
+    await user.type(textEditor(), "hello world")
     await user.click(screen.getByRole("button", { name: "Create prompt" }))
 
     await waitFor(() => {
@@ -108,7 +117,8 @@ describe("PromptForm (create mode)", () => {
     await user.click(await screen.findByText("/sales"))
 
     await user.type(screen.getByLabelText("Prompt name"), "my-prompt")
-    await user.type(screen.getByLabelText("Text"), "bad template")
+    await user.selectOptions(screen.getByLabelText("Role"), "user")
+    await user.type(textEditor(), "bad template")
     await user.click(screen.getByRole("button", { name: "Create prompt" }))
 
     await waitFor(() => {
@@ -147,7 +157,8 @@ describe("PromptForm (create mode)", () => {
     await user.click(await screen.findByText("/sales"))
 
     await user.type(screen.getByLabelText("Prompt name"), "Bad/Slug")
-    await user.type(screen.getByLabelText("Text"), "hello world")
+    await user.selectOptions(screen.getByLabelText("Role"), "user")
+    await user.type(textEditor(), "hello world")
     await user.click(screen.getByRole("button", { name: "Create prompt" }))
 
     await waitFor(() => {
@@ -156,6 +167,21 @@ describe("PromptForm (create mode)", () => {
       )
     })
     expect(screen.getByRole("alert").id).toBe("leaf-slug-error")
+  })
+
+  it("disables Create prompt until both Category and Role are chosen", async () => {
+    const user = userEvent.setup()
+    renderForm(<PromptForm mode="create" />)
+
+    await waitFor(() => screen.getByRole("combobox", { name: "Category" }))
+    expect(screen.getByRole("button", { name: "Create prompt" })).toBeDisabled()
+
+    await user.click(screen.getByRole("combobox", { name: "Category" }))
+    await user.click(await screen.findByText("/sales"))
+    expect(screen.getByRole("button", { name: "Create prompt" })).toBeDisabled()
+
+    await user.selectOptions(screen.getByLabelText("Role"), "system")
+    expect(screen.getByRole("button", { name: "Create prompt" })).toBeEnabled()
   })
 
   it("creates a new category inline and selects it", async () => {
@@ -184,6 +210,7 @@ const UPDATE_PROPS = {
   slug: "/sales/my-prompt",
   leafSlug: "my-prompt",
   categoryId: "cat-00000000-0000-0000-0000-000000000001",
+  role: "user" as const,
   initialText: "hello world",
 }
 
@@ -192,14 +219,16 @@ describe("PromptForm (update mode)", () => {
     vi.clearAllMocks()
   })
 
-  it("pre-fills text and disables Category/Parent category/Prompt name", async () => {
+  it("pre-fills text and disables Category/Parent category/Prompt name/Role", async () => {
     renderForm(<PromptForm {...UPDATE_PROPS} />)
 
     await waitFor(() => screen.getByRole("combobox", { name: "Category" }))
     expect(screen.getByRole("combobox", { name: "Category" })).toBeDisabled()
     expect(screen.getByRole("combobox", { name: "Parent category" })).toBeDisabled()
     expect(screen.getByLabelText("Prompt name")).toBeDisabled()
-    expect(screen.getByLabelText("Text")).toHaveValue("hello world")
+    expect(screen.getByLabelText("Role")).toBeDisabled()
+    expect(screen.getByLabelText("Role")).toHaveValue("user")
+    expect(textEditor()).toHaveTextContent("hello world")
     expect(screen.getByRole("button", { name: "Save changes" })).toBeInTheDocument()
   })
 
@@ -207,8 +236,8 @@ describe("PromptForm (update mode)", () => {
     const user = userEvent.setup()
     renderForm(<PromptForm {...UPDATE_PROPS} />)
 
-    await user.clear(screen.getByLabelText("Text"))
-    await user.type(screen.getByLabelText("Text"), "updated text")
+    await user.clear(textEditor())
+    await user.type(textEditor(), "updated text")
     await user.click(screen.getByRole("button", { name: "Save changes" }))
 
     const { toast } = await import("sonner")
@@ -231,7 +260,7 @@ describe("PromptForm (update mode)", () => {
     const user = userEvent.setup()
     renderForm(<PromptForm {...UPDATE_PROPS} />)
 
-    await user.type(screen.getByLabelText("Text"), " more")
+    await user.type(textEditor(), " more")
     await user.click(screen.getByRole("button", { name: "Save changes" }))
 
     await waitFor(() => {
@@ -242,7 +271,7 @@ describe("PromptForm (update mode)", () => {
     await user.click(screen.getByRole("button", { name: "Reload latest version" }))
 
     await waitFor(() => {
-      expect(screen.getByLabelText("Text")).toHaveValue("hello world")
+      expect(textEditor()).toHaveTextContent("hello world")
     })
     expect(screen.queryByRole("alert")).not.toBeInTheDocument()
   })
@@ -270,7 +299,7 @@ describe("PromptForm (update mode)", () => {
     const user = userEvent.setup()
     renderForm(<PromptForm {...UPDATE_PROPS} />)
 
-    await user.type(screen.getByLabelText("Text"), "bad template")
+    await user.type(textEditor(), "bad template")
     await user.click(screen.getByRole("button", { name: "Save changes" }))
 
     await waitFor(() => {

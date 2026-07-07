@@ -17,6 +17,7 @@ class Prompt:
     leaf_slug: str
     category_id: str
     version: int
+    role: str
     text: str
     is_deleted: bool
     created_at: datetime
