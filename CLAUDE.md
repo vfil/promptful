@@ -67,6 +67,10 @@ pnpm typecheck    # tsc --noEmit, standalone (no watch)
 `pnpm dev` type-checks in parallel with the dev server — a red squiggly in the terminal from the `tsc`
 process is a real type error even if the Next.js server itself doesn't fail to compile.
 
+Do not use the `playwright-cli` skill (or other browser automation) to verify UI changes unless the user
+directly asks for it — the user prefers to test manually in their own browser. Typecheck/lint/tests are
+still expected before reporting a UI change complete; just don't drive a browser to do it.
+
 ## SDK (`sdk/`)
 
 A thin, read-only, sync Python client for the API (`Client.get_prompt`, `.get_prompts`, `.list_prompts`),

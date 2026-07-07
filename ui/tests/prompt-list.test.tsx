@@ -67,5 +67,14 @@ describe("PromptList", () => {
     expect(within(rows[1]).getByText("/sales/alpha")).toBeInTheDocument()
     expect(within(rows[2]).getByText("/sales/zeta")).toBeInTheDocument()
     expect(screen.queryByText("No prompts yet")).not.toBeInTheDocument()
+
+    expect(within(rows[1]).getByRole("link", { name: "Edit" })).toHaveAttribute(
+      "href",
+      "/prompts/edit/sales/alpha"
+    )
+    expect(within(rows[2]).getByRole("link", { name: "Edit" })).toHaveAttribute(
+      "href",
+      "/prompts/edit/sales/zeta"
+    )
   })
 })

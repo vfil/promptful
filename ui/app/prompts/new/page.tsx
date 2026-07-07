@@ -1,5 +1,5 @@
-import { CreatePromptForm } from "@/components/create-prompt-form"
+import { PromptForm } from "@/components/prompt-form"
 
 export default function NewPrompt() {
-  return <CreatePromptForm />
+  return <PromptForm mode="create" />
 }

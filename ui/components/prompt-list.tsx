@@ -43,6 +43,7 @@ export function PromptList() {
             <tr className="border-b text-left text-muted-foreground">
               <th className="py-2 font-medium">Slug</th>
               <th className="py-2 font-medium">Created</th>
+              <th className="py-2 font-medium sr-only">Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -50,6 +51,11 @@ export function PromptList() {
               <tr key={prompt.id} className="border-b last:border-0">
                 <td className="py-2 font-mono">{prompt.slug}</td>
                 <td className="py-2 text-muted-foreground">{formatDate(prompt.created_at)}</td>
+                <td className="py-2 text-right">
+                  <Button asChild variant="ghost" size="sm">
+                    <Link href={`/prompts/edit${prompt.slug}`}>Edit</Link>
+                  </Button>
+                </td>
               </tr>
             ))}
           </tbody>

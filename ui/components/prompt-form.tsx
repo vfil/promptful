@@ -15,24 +15,42 @@ import {
   createCategory,
   createPrompt,
   getCategories,
+  getPromptBySlug,
+  updatePrompt,
 } from "@/lib/api"
+
+interface PromptFormProps {
+  mode: "create" | "update"
+  /** Update mode only: the current Live Version's id, used as the optimistic-concurrency token. */
+  id?: string
+  /** Update mode only: the prompt's full slug, used to re-resolve the Live Version on conflict. */
+  slug?: string
+  leafSlug?: string
+  categoryId?: string
+  initialText?: string
+}
 
 interface FormErrors {
   leafSlugError?: string
   categoryError?: string
   textError?: string
+  conflict?: boolean
   generic?: string
 }
 
-function classifyError(err: unknown): FormErrors {
+function classifyError(err: unknown, mode: "create" | "update"): FormErrors {
   if (!(err instanceof ApiCallError)) return { generic: String(err) }
   const { status, detail } = err
 
-  if (status === 409 && typeof detail === "string") {
+  if (mode === "create" && status === 409 && typeof detail === "string") {
     return { leafSlugError: detail }
   }
 
-  if (status === 404 && typeof detail === "string") {
+  if (mode === "update" && status === 409) {
+    return { conflict: true }
+  }
+
+  if (mode === "create" && status === 404 && typeof detail === "string") {
     return { categoryError: detail }
   }
 
@@ -51,11 +69,14 @@ function classifyError(err: unknown): FormErrors {
   return { generic: typeof detail === "string" ? detail : "Request failed" }
 }
 
-export function CreatePromptForm() {
-  const [leafSlug, setLeafSlug] = useState("")
-  const [categoryId, setCategoryId] = useState<string | null>(null)
+export function PromptForm(props: PromptFormProps) {
+  const isUpdate = props.mode === "update"
+
+  const [leafSlug, setLeafSlug] = useState(props.leafSlug ?? "")
+  const [categoryId, setCategoryId] = useState<string | null>(props.categoryId ?? null)
   const [parentCategoryId, setParentCategoryId] = useState<string | null>(null)
-  const [text, setText] = useState("")
+  const [text, setText] = useState(props.initialText ?? "")
+  const [liveId, setLiveId] = useState(props.id)
   const [errors, setErrors] = useState<FormErrors>({})
 
   const router = useRouter()
@@ -66,18 +87,31 @@ export function CreatePromptForm() {
     queryFn: getCategories,
   })
 
+  // Update mode: the "Parent category" box is purely informational (mirrors the
+  // create-form layout) — derive it from the fixed Category rather than tracking it.
+  const derivedParentCategoryId = isUpdate
+    ? categories.find((c) => c.id === categoryId)?.parent_id ?? null
+    : parentCategoryId
+
   const mutation = useMutation({
     mutationFn: () => {
-      if (!categoryId) throw new Error("Category is required")
-      return createPrompt(leafSlug, categoryId, text)
+      if (props.mode === "create") {
+        if (!categoryId) throw new Error("Category is required")
+        return createPrompt(leafSlug, categoryId, text)
+      }
+      return updatePrompt(liveId!, text)
     },
-    onSuccess: () => {
-      toast.success("Prompt created")
+    onSuccess: (updated) => {
+      toast.success(isUpdate ? "Prompt updated" : "Prompt created")
+      // Seed the per-slug cache immediately so a subsequent visit to the edit page
+      // (e.g. clicking "Edit" again from the list) doesn't serve pre-mutation text
+      // out of a stale cache entry — see ADR-0006.
+      queryClient.setQueryData(["prompt", updated.slug], updated)
       queryClient.invalidateQueries({ queryKey: ["prompts"] })
       router.push("/")
     },
     onError: (err) => {
-      setErrors(classifyError(err))
+      setErrors(classifyError(err, props.mode))
     },
   })
 
@@ -87,6 +121,14 @@ export function CreatePromptForm() {
     // before any background refetch completes.
     queryClient.setQueryData(["categories"], (old: typeof categories) => [...old, cat])
     setCategoryId(cat.id)
+  }
+
+  async function handleReloadLatest() {
+    if (!props.slug) return
+    const latest = await getPromptBySlug(props.slug)
+    setLiveId(latest.id)
+    setText(latest.text)
+    setErrors({})
   }
 
   return (
@@ -109,10 +151,11 @@ export function CreatePromptForm() {
             id="category"
             label="Category"
             value={categoryId}
-            onChange={setCategoryId}
+            onChange={isUpdate ? () => {} : setCategoryId}
             categories={categories}
-            onCreateCategory={handleCreateCategory}
-            allowCreate
+            onCreateCategory={isUpdate ? undefined : handleCreateCategory}
+            allowCreate={!isUpdate}
+            disabled={isUpdate}
             placeholder="Select or create…"
           />
           {errors.categoryError && (
@@ -126,9 +169,10 @@ export function CreatePromptForm() {
           <CategoryCombobox
             id="parent-category"
             label="Parent category"
-            value={parentCategoryId}
-            onChange={setParentCategoryId}
+            value={derivedParentCategoryId}
+            onChange={isUpdate ? () => {} : setParentCategoryId}
             categories={categories}
+            disabled={isUpdate}
             placeholder="None (root)"
           />
         </div>
@@ -144,6 +188,7 @@ export function CreatePromptForm() {
           onChange={(e) => setLeafSlug(e.target.value)}
           placeholder="first-lead"
           required
+          disabled={isUpdate}
           aria-describedby={errors.leafSlugError ? "leaf-slug-error" : undefined}
         />
         {errors.leafSlugError && (
@@ -173,14 +218,38 @@ export function CreatePromptForm() {
         )}
       </div>
 
+      {errors.conflict && (
+        <div
+          role="alert"
+          className="flex flex-col gap-2 rounded-md border border-destructive/50 bg-destructive/10 p-3 text-sm text-destructive"
+        >
+          <p>This prompt changed elsewhere. Reload to see the latest version before saving.</p>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={handleReloadLatest}
+            className="self-start"
+          >
+            Reload latest version
+          </Button>
+        </div>
+      )}
+
       {errors.generic && (
         <p role="alert" className="text-sm text-destructive">
           {errors.generic}
         </p>
       )}
 
-      <Button type="submit" disabled={mutation.isPending || !categoryId}>
-        {mutation.isPending ? "Creating…" : "Create prompt"}
+      <Button type="submit" disabled={mutation.isPending || (!isUpdate && !categoryId)}>
+        {mutation.isPending
+          ? isUpdate
+            ? "Saving…"
+            : "Creating…"
+          : isUpdate
+            ? "Save changes"
+            : "Create prompt"}
       </Button>
     </form>
   )

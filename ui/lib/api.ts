@@ -83,3 +83,15 @@ export async function createPrompt(
     body: JSON.stringify({ leaf_slug, category_id, text }),
   })
 }
+
+export async function getPromptBySlug(slug: string): Promise<PromptVersion> {
+  return apiFetch<PromptVersion>(`/prompt?slug=${encodeURIComponent(slug)}`)
+}
+
+export async function updatePrompt(id: string, text: string): Promise<PromptVersion> {
+  return apiFetch<PromptVersion>(`/prompt/${id}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ text }),
+  })
+}
