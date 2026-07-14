@@ -1,9 +1,21 @@
 "use client"
 
 import Link from "next/link"
-import { useQuery } from "@tanstack/react-query"
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
-import { listPrompts } from "@/lib/api"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog"
+import { ApiCallError, type PromptSummary, deletePrompt, listPrompts } from "@/lib/api"
 
 function formatDate(iso: string): string {
   return new Date(iso).toLocaleDateString(undefined, {
@@ -11,6 +23,62 @@ function formatDate(iso: string): string {
     month: "short",
     day: "numeric",
   })
+}
+
+function DeletePromptAction({ prompt }: { prompt: PromptSummary }) {
+  const queryClient = useQueryClient()
+
+  const mutation = useMutation({
+    mutationFn: () => deletePrompt(prompt.id),
+    onSuccess: () => {
+      toast.success("Prompt deleted")
+      queryClient.invalidateQueries({ queryKey: ["prompts"] })
+    },
+    onError: (err) => {
+      // A stale row (its Live Version changed or was deleted elsewhere since
+      // the list was fetched) 409s — refetch so the row reflects reality
+      // instead of silently retrying (ADR-0003, ADR-0008).
+      if (err instanceof ApiCallError && err.status === 409) {
+        toast.error("This prompt changed elsewhere — refreshing the list")
+      } else {
+        toast.error("Failed to delete prompt")
+      }
+      queryClient.invalidateQueries({ queryKey: ["prompts"] })
+    },
+  })
+
+  return (
+    <AlertDialog>
+      <AlertDialogTrigger asChild>
+        <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive">
+          Delete
+        </Button>
+      </AlertDialogTrigger>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Delete this prompt?</AlertDialogTitle>
+          <AlertDialogDescription>
+            <span className="font-mono">{prompt.slug}</span> will no longer be readable at this
+            slug. Its version history is kept, and re-creating the same slug later continues that
+            history.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>Cancel</AlertDialogCancel>
+          <AlertDialogAction
+            className="bg-destructive text-white hover:bg-destructive/90 focus-visible:ring-destructive/20 dark:bg-destructive/60"
+            disabled={mutation.isPending}
+            onClick={(e) => {
+              e.preventDefault()
+              mutation.mutate()
+            }}
+          >
+            {mutation.isPending ? "Deleting…" : "Delete"}
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  )
 }
 
 export function PromptList() {
@@ -52,9 +120,12 @@ export function PromptList() {
                 <td className="py-2 font-mono">{prompt.slug}</td>
                 <td className="py-2 text-muted-foreground">{formatDate(prompt.created_at)}</td>
                 <td className="py-2 text-right">
-                  <Button asChild variant="ghost" size="sm">
-                    <Link href={`/prompts/edit${prompt.slug}`}>Edit</Link>
-                  </Button>
+                  <div className="flex justify-end gap-1">
+                    <Button asChild variant="ghost" size="sm">
+                      <Link href={`/prompts/edit${prompt.slug}`}>Edit</Link>
+                    </Button>
+                    <DeletePromptAction prompt={prompt} />
+                  </div>
                 </td>
               </tr>
             ))}

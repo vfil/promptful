@@ -118,4 +118,21 @@ export const handlers = [
     promptStore.set(slug, updated)
     return HttpResponse.json(updated)
   }),
+
+  http.delete(`${API_URL}/prompt/:id`, ({ params }) => {
+    const entry = [...promptStore.entries()].find(([, r]) => r.id === params.id)
+    if (!entry) {
+      return HttpResponse.json({ detail: "no prompt version with that id" }, { status: 404 })
+    }
+    const [slug, current] = entry
+    const tombstone: PromptRecord = {
+      ...current,
+      id: versionId(current.version + 1),
+      version: current.version + 1,
+      text: "",
+      is_deleted: true,
+    }
+    promptStore.set(slug, tombstone)
+    return HttpResponse.json(tombstone)
+  }),
 ]

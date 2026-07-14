@@ -6,6 +6,7 @@ from datetime import datetime
 import httpx
 
 from promptful.exceptions import (
+    PromptConflictError,
     PromptfulAPIError,
     PromptfulConnectionError,
     PromptNotFoundError,
@@ -16,11 +17,13 @@ _BASE_URL_ENV_VAR = "PROMPTFUL_BASE_URL"
 
 
 class Client:
-    """A thin, read-only client for the Promptful API.
+    """A thin client for the Promptful API, read-only apart from `delete_prompt`.
 
-    Fetches Prompts by slug. Does not authenticate, cache, retry, or render
-    Jinja2 template text — `text` is always returned raw, exactly as stored.
-    These are deliberate v1 scope decisions; see sdk/README.md.
+    Fetches Prompts by slug, and can delete them for automation/cleanup use
+    cases (see ADR-0008) — there is no create or update. Does not authenticate,
+    cache, retry, or render Jinja2 template text — `text` is always returned
+    raw, exactly as stored. These are deliberate v1 scope decisions; see
+    sdk/README.md.
     """
 
     def __init__(self, base_url: str | None = None, *, timeout: float = 10.0) -> None:
@@ -113,6 +116,31 @@ class Client:
             for item in response.json()
         ]
 
+    def delete_prompt(self, slug: str) -> None:
+        """Delete a Prompt by slug (ADR-0008).
+
+        Resolves `slug`'s current Live Version, then deletes it — appending a
+        Tombstone version server-side (ADR-0002). Not atomic with the
+        resolve: a concurrent write landing in between raises
+        `PromptConflictError` rather than retrying automatically.
+
+        Args:
+            slug: Full slug, e.g. "/sales/screening/first-lead".
+
+        Raises:
+            PromptNotFoundError: `slug` has no Live Version (never existed,
+                wrong namespace, or already Tombstoned).
+            PromptConflictError: A concurrent write landed on `slug` between
+                resolving its Live Version and deleting it.
+            PromptfulAPIError: The API responded with an unexpected error status.
+            PromptfulConnectionError: The API could not be reached.
+        """
+        current = self.get_prompt(slug)
+        response = self._delete(f"/prompt/{current.id}")
+        if response.status_code == 409:
+            raise PromptConflictError(slug)
+        _raise_for_unexpected_status(response)
+
     def _get(self, path: str, **kwargs: object) -> httpx.Response:
         try:
             return self._http.get(path, **kwargs)
@@ -122,6 +150,12 @@ class Client:
     def _post(self, path: str, **kwargs: object) -> httpx.Response:
         try:
             return self._http.post(path, **kwargs)
+        except httpx.HTTPError as exc:
+            raise PromptfulConnectionError(str(exc)) from exc
+
+    def _delete(self, path: str, **kwargs: object) -> httpx.Response:
+        try:
+            return self._http.delete(path, **kwargs)
         except httpx.HTTPError as exc:
             raise PromptfulConnectionError(str(exc)) from exc
 

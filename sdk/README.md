@@ -1,8 +1,9 @@
 # Promptful SDK
 
-A thin, read-only Python client for the Promptful API — fetch prompts by slug from your own
-codebase. See [/CONTEXT.md](../CONTEXT.md) for the domain vocabulary (Prompt, Slug, Version, Live
-Version, Tombstone).
+A thin Python client for the Promptful API — fetch prompts by slug from your own codebase, with
+one narrow write path (`delete_prompt`, for automation/cleanup scripts) — see
+[ADR-0008](../docs/adr/0008-sdk-gains-a-narrow-slug-based-delete.md). See [/CONTEXT.md](../CONTEXT.md)
+for the domain vocabulary (Prompt, Slug, Version, Live Version, Tombstone).
 
 ## Install
 
@@ -36,6 +37,9 @@ results = client.get_prompts(["/sales/first-lead", "/sales/second-lead"])
 for summary in client.list_prompts():
     print(summary.slug, summary.version)
 
+# Delete by slug — appends a Tombstone version server-side (ADR-0002).
+client.delete_prompt("/sales/screening/first-lead")
+
 client.close()  # or use `with Client(...) as client: ...`
 ```
 
@@ -54,7 +58,8 @@ All errors inherit from `PromptfulError`:
 
 | Exception                   | Raised when                                              |
 |------------------------------|-----------------------------------------------------------|
-| `PromptNotFoundError`        | `get_prompt(slug)` has no Live Version at that slug        |
+| `PromptNotFoundError`        | `get_prompt`/`delete_prompt` has no Live Version at that slug |
+| `PromptConflictError`        | `delete_prompt(slug)` raced a concurrent write between resolving and deleting the Live Version |
 | `PromptfulAPIError`          | The API responded with an unexpected error status         |
 | `PromptfulConnectionError`   | The API couldn't be reached (network, timeout, DNS, ...)   |
 
@@ -64,10 +69,12 @@ These are deliberate v1 scope decisions, not gaps:
 
 - **No auth** — the API itself has none yet either.
 - **No caching** — every call hits the API; wrap it yourself if you need caching.
-- **No automatic retries** — a failure raises immediately.
+- **No automatic retries** — a failure raises immediately, including `PromptConflictError` from
+  `delete_prompt` — call it again if the delete should still happen.
 - **No template rendering** — `text` is always the raw, unrendered Jinja2 source.
 - **No version pinning** — `get_prompt`/`get_prompts` always return the current Live Version.
-- **No writes** — create/update/delete stay API-only for now.
+- **No create or update** — `delete_prompt` is the SDK's only write path (ADR-0008); creating and
+  editing prompts stay API/UI-only.
 
 ## API reference
 
@@ -77,6 +84,7 @@ These are deliberate v1 scope decisions, not gaps:
 | `.get_prompt(slug)`            | `Prompt`                | Raises `PromptNotFoundError` if there's no Live Version |
 | `.get_prompts(slugs)`          | `list[Prompt \| None]`  | Aligned to `slugs`' order/duplicates; `None` = not found |
 | `.list_prompts()`              | `list[PromptSummary]`   | Every live prompt, no `text`                        |
+| `.delete_prompt(slug)`         | `None`                  | Raises `PromptNotFoundError` or `PromptConflictError` |
 | `.close()`                     | —                        | Or use `Client(...)` as a context manager           |
 
 ## Testing

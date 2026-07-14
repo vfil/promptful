@@ -99,3 +99,9 @@ export async function updatePrompt(id: string, text: string): Promise<PromptVers
     body: JSON.stringify({ text }),
   })
 }
+
+export async function deletePrompt(id: string): Promise<PromptVersion> {
+  return apiFetch<PromptVersion>(`/prompt/${id}`, {
+    method: "DELETE",
+  })
+}

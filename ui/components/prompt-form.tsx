@@ -7,6 +7,17 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog"
 import { CategoryCombobox } from "@/components/category-combobox"
 import { PromptTextEditor } from "@/components/prompt-text-editor"
 import { PromptGuidancePanel } from "@/components/prompt-guidance-panel"
@@ -16,6 +27,7 @@ import {
   type ValidationError,
   createCategory,
   createPrompt,
+  deletePrompt,
   getCategories,
   getPromptBySlug,
   updatePrompt,
@@ -117,6 +129,20 @@ export function PromptForm(props: PromptFormProps) {
     },
     onError: (err) => {
       setErrors(classifyError(err, props.mode))
+    },
+  })
+
+  const deleteMutation = useMutation({
+    mutationFn: () => deletePrompt(liveId!),
+    onSuccess: () => {
+      toast.success("Prompt deleted")
+      queryClient.invalidateQueries({ queryKey: ["prompts"] })
+      router.push("/")
+    },
+    onError: (err) => {
+      // Same cause and same fix as a stale update (id no longer Live) — reuse
+      // the update-conflict classification and banner (ADR-0003, ADR-0008).
+      setErrors(classifyError(err, "update"))
     },
   })
 
@@ -274,18 +300,53 @@ export function PromptForm(props: PromptFormProps) {
           </p>
         )}
 
-        <Button
-          type="submit"
-          disabled={mutation.isPending || (!isUpdate && (!categoryId || !role))}
-        >
-          {mutation.isPending
-            ? isUpdate
-              ? "Saving…"
-              : "Creating…"
-            : isUpdate
-              ? "Save changes"
-              : "Create prompt"}
-        </Button>
+        <div className="flex gap-3">
+          <Button
+            type="submit"
+            disabled={mutation.isPending || (!isUpdate && (!categoryId || !role))}
+          >
+            {mutation.isPending
+              ? isUpdate
+                ? "Saving…"
+                : "Creating…"
+              : isUpdate
+                ? "Save changes"
+                : "Create prompt"}
+          </Button>
+
+          {isUpdate && (
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button type="button" variant="outline" className="text-destructive hover:text-destructive">
+                  Delete prompt
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Delete this prompt?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    <span className="font-mono">{props.slug}</span> will no longer be readable at
+                    this slug. Its version history is kept, and re-creating the same slug later
+                    continues that history.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  <AlertDialogAction
+                    className="bg-destructive text-white hover:bg-destructive/90 focus-visible:ring-destructive/20 dark:bg-destructive/60"
+                    disabled={deleteMutation.isPending}
+                    onClick={(e) => {
+                      e.preventDefault()
+                      deleteMutation.mutate()
+                    }}
+                  >
+                    {deleteMutation.isPending ? "Deleting…" : "Delete"}
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          )}
+        </div>
       </form>
 
       <PromptGuidancePanel role={role || null} />

@@ -1,7 +1,7 @@
 import httpx
 import pytest
 
-from promptful import Client, Prompt, PromptNotFoundError, PromptSummary
+from promptful import Client, Prompt, PromptConflictError, PromptNotFoundError, PromptSummary
 
 
 def _make_category(base_url: str, slug_segment: str = "sales") -> dict:
@@ -114,3 +114,65 @@ def test_get_prompts_repeats_duplicate_slugs_as_separate_entries(live_base_url: 
     assert len(results) == 2
     assert results[0] is not None and results[1] is not None
     assert results[0].slug == results[1].slug == "/sales/alpha"
+
+
+def test_delete_prompt_removes_the_live_version(live_base_url: str) -> None:
+    category = _make_category(live_base_url)
+    _create_prompt(live_base_url, category["id"])
+
+    with Client(base_url=live_base_url) as client:
+        result = client.delete_prompt("/sales/first-lead")
+        assert result is None
+
+        with pytest.raises(PromptNotFoundError):
+            client.get_prompt("/sales/first-lead")
+
+
+def test_delete_prompt_unknown_slug_raises_not_found(live_base_url: str) -> None:
+    with Client(base_url=live_base_url) as client:
+        with pytest.raises(PromptNotFoundError) as exc_info:
+            client.delete_prompt("/sales/does-not-exist")
+
+    assert exc_info.value.slug == "/sales/does-not-exist"
+
+
+def test_delete_prompt_already_deleted_raises_not_found(live_base_url: str) -> None:
+    category = _make_category(live_base_url)
+    created = _create_prompt(live_base_url, category["id"])
+    delete_response = httpx.delete(f"{live_base_url}/prompt/{created['id']}")
+    assert delete_response.status_code == 200, delete_response.text
+
+    with Client(base_url=live_base_url) as client:
+        with pytest.raises(PromptNotFoundError):
+            client.delete_prompt("/sales/first-lead")
+
+
+def test_delete_prompt_stale_live_version_raises_conflict(
+    live_base_url: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    category = _make_category(live_base_url)
+    created = _create_prompt(live_base_url, category["id"])
+
+    client = Client(base_url=live_base_url)
+    real_delete = client._delete
+
+    def _delete_after_concurrent_write(path: str, **kwargs: object) -> httpx.Response:
+        # delete_prompt resolves the Live Version's id via GET right before
+        # deleting it, so a race can't be induced by writing beforehand — it
+        # has to land between that resolve and this delete call, exactly
+        # like a second process landing a write mid-request (ADR-0003).
+        response = httpx.post(
+            f"{live_base_url}/prompt/{created['id']}", json={"text": "changed by someone else"}
+        )
+        assert response.status_code == 200, response.text
+        return real_delete(path, **kwargs)
+
+    monkeypatch.setattr(client, "_delete", _delete_after_concurrent_write)
+
+    with pytest.raises(PromptConflictError) as exc_info:
+        client.delete_prompt("/sales/first-lead")
+
+    assert exc_info.value.slug == "/sales/first-lead"
+    # The Live Version (now the updated one) is untouched.
+    assert client.get_prompt("/sales/first-lead").text == "changed by someone else"
+    client.close()

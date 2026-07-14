@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react"
+import { render, screen, waitFor, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { describe, it, expect, vi, beforeEach } from "vitest"
@@ -306,5 +306,43 @@ describe("PromptForm (update mode)", () => {
       expect(screen.getByRole("alert")).toHaveTextContent("text is not a valid Jinja2 template")
     })
     expect(screen.getByRole("alert").id).toBe("text-error")
+  })
+
+  it("deletes the prompt via the confirm dialog and redirects to the prompt list", async () => {
+    const user = userEvent.setup()
+    renderForm(<PromptForm {...UPDATE_PROPS} />)
+
+    await user.click(screen.getByRole("button", { name: "Delete prompt" }))
+    const dialog = await screen.findByRole("alertdialog")
+    await user.click(within(dialog).getByRole("button", { name: "Delete" }))
+
+    const { toast } = await import("sonner")
+    await waitFor(() => {
+      expect(toast.success).toHaveBeenCalledWith("Prompt deleted")
+    })
+    expect(pushMock).toHaveBeenCalledWith("/")
+  })
+
+  it("shows the conflict banner instead of deleting when the version is stale (409)", async () => {
+    server.use(
+      http.delete("http://localhost:8000/prompt/:id", () =>
+        HttpResponse.json(
+          { detail: "this version is no longer the current version; re-read it and retry" },
+          { status: 409 }
+        )
+      )
+    )
+
+    const user = userEvent.setup()
+    renderForm(<PromptForm {...UPDATE_PROPS} />)
+
+    await user.click(screen.getByRole("button", { name: "Delete prompt" }))
+    const dialog = await screen.findByRole("alertdialog")
+    await user.click(within(dialog).getByRole("button", { name: "Delete" }))
+
+    await waitFor(() => {
+      expect(screen.getByRole("alert")).toHaveTextContent("changed elsewhere")
+    })
+    expect(pushMock).not.toHaveBeenCalledWith("/")
   })
 })

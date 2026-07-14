@@ -1,5 +1,6 @@
 from promptful.client import Client
 from promptful.exceptions import (
+    PromptConflictError,
     PromptfulAPIError,
     PromptfulConnectionError,
     PromptfulError,
@@ -15,4 +16,5 @@ __all__ = [
     "PromptfulAPIError",
     "PromptfulConnectionError",
     "PromptNotFoundError",
+    "PromptConflictError",
 ]
