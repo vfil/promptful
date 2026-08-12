@@ -8,14 +8,26 @@ export interface Category {
   created_at: string
 }
 
+export type PromptRole = "system" | "user" | "assistant"
+
 export interface PromptVersion {
   id: string
   slug: string
   leaf_slug: string
   category_id: string
   version: number
+  role: PromptRole
   text: string
   is_deleted: boolean
+  created_at: string
+}
+
+export interface PromptSummary {
+  id: string
+  slug: string
+  leaf_slug: string
+  category_id: string
+  version: number
   created_at: string
 }
 
@@ -59,14 +71,37 @@ export async function createCategory(
   })
 }
 
+export async function listPrompts(): Promise<PromptSummary[]> {
+  return apiFetch<PromptSummary[]>("/prompts")
+}
+
 export async function createPrompt(
   leaf_slug: string,
   category_id: string,
+  role: PromptRole,
   text: string
 ): Promise<PromptVersion> {
   return apiFetch<PromptVersion>("/prompt/create", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ leaf_slug, category_id, text }),
+    body: JSON.stringify({ leaf_slug, category_id, role, text }),
+  })
+}
+
+export async function getPromptBySlug(slug: string): Promise<PromptVersion> {
+  return apiFetch<PromptVersion>(`/prompt?slug=${encodeURIComponent(slug)}`)
+}
+
+export async function updatePrompt(id: string, text: string): Promise<PromptVersion> {
+  return apiFetch<PromptVersion>(`/prompt/${id}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ text }),
+  })
+}
+
+export async function deletePrompt(id: string): Promise<PromptVersion> {
+  return apiFetch<PromptVersion>(`/prompt/${id}`, {
+    method: "DELETE",
   })
 }

@@ -1,0 +1,35 @@
+[project]
+name = "promptful"
+version = "0.1.0"
+description = "Python SDK for fetching Promptful prompts by slug"
+readme = "README.md"
+authors = [
+    { name = "Vlad", email = "vladfilimon@gmail.com" }
+]
+requires-python = ">=3.11"
+dependencies = [
+    "httpx>=0.28.1",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1.1",
+    # The rest of this group exists only to run the real FastAPI app
+    # in-process for integration tests (see tests/conftest.py) — none of it
+    # is a runtime dependency of the SDK itself.
+    "fastapi[standard]>=0.115.12",
+    "sqlalchemy[asyncio]>=2.0.41",
+    "asyncpg>=0.31.0",
+    "psycopg2-binary>=2.9.10",
+    "pydantic>=2.13.4",
+    "pydantic-settings>=2.14.2",
+    "jinja2>=3.1.6",
+    "python-dotenv>=1.1.0",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[build-system]
+requires = ["uv_build>=0.11.7,<0.12.0"]
+build-backend = "uv_build"

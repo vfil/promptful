@@ -30,6 +30,8 @@ interface CategoryComboboxProps {
   placeholder?: string
   /** If true, the "Create" option is shown when no match is found */
   allowCreate?: boolean
+  /** If true, the trigger is inert and cannot be opened */
+  disabled?: boolean
   id?: string
 }
 
@@ -41,6 +43,7 @@ export function CategoryCombobox({
   onCreateCategory,
   placeholder = "Select category…",
   allowCreate = false,
+  disabled = false,
   id,
 }: CategoryComboboxProps) {
   const [open, setOpen] = React.useState(false)
@@ -81,6 +84,7 @@ export function CategoryCombobox({
             variant="outline"
             role="combobox"
             aria-expanded={open}
+            disabled={disabled}
             className="w-full justify-between font-normal"
           >
             <span className={cn("truncate", !selected && "text-muted-foreground")}>

@@ -55,3 +55,11 @@ _Avoid_: latest, active, current
 A Version created by a delete operation (`is_deleted = true`, no usable `text`). Deleting a
 Prompt never removes rows — it appends a Tombstone Version on top of the existing history.
 _Avoid_: soft delete, deactivated
+
+**Role**:
+Which of the three LLM message positions a Prompt's `text` is written to fill — `system`,
+`user`, or `assistant`. Fixed at Prompt creation, alongside Category and Leaf Slug; never varies
+across a Prompt's Versions. Purely descriptive of intended usage — Promptful never sends `text`
+to a model itself (see [ADR-0004](docs/adr/0004-jinja2-text-is-validated-not-rendered.md)), so
+Role carries no execution behavior, only which authoring template/guidance applies.
+_Avoid_: message type, prompt type, kind
