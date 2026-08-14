@@ -88,3 +88,13 @@ short version:
 There is no `PUT` and no row is ever updated or physically deleted in place — see
 [ADR-0001](../docs/adr/0001-versions-are-immutable-rows.md) and
 [ADR-0003](../docs/adr/0003-no-put-optimistic-concurrency-via-id.md) for why.
+
+## Local sync
+
+Teams running Promptful locally without a shared server sync prompts via `import`/`export` — see
+[/cli/README.md](../cli/README.md) for usage and
+[ADR-0009](../docs/adr/0009-local-sync-via-git-tracked-prompt-files.md) for the design. That
+tooling lives in [/cli/](../cli/), a separate package from this one on purpose (see
+[ADR-0010](../docs/adr/0010-sync-cli-ships-as-its-own-package.md)) — nothing in `api/` runs it
+directly, `cli/`'s `promptful-sync` just talks to this API's endpoints over HTTP like any other
+client.
