@@ -63,3 +63,24 @@ across a Prompt's Versions. Purely descriptive of intended usage — Promptful n
 to a model itself (see [ADR-0004](docs/adr/0004-jinja2-text-is-validated-not-rendered.md)), so
 Role carries no execution behavior, only which authoring template/guidance applies.
 _Avoid_: message type, prompt type, kind
+
+### Local Sync
+
+**Prompt File**:
+The git-tracked, on-disk form of a Prompt's current Live Version — a `.prompt.md` file whose path
+mirrors its Slug, `role` in frontmatter, `text` as the body. Carries no `id`, `version`, or
+`created_at`; git history is its change history, not the Postgres Version sequence.
+_Avoid_: export file, snapshot
+
+**Import**:
+Replays every Prompt File that differs from its local Live Version into the local database, via
+the same create/update operations the UI uses — never delete. A slug whose Prompt File
+disappeared is left alone locally; only Export removes files. Whichever of a local edit or an
+Import runs more recently wins — there is no conflict detection.
+_Avoid_: sync, pull
+
+**Export**:
+Writes every local Live Version that differs from its Prompt File back out to disk, ready to
+commit and share, and removes a Prompt File whose slug no longer has a Live Version. The inverse
+of Import, except this direction does delete.
+_Avoid_: sync, push

@@ -15,8 +15,9 @@ code yet. Both directories were bootstrapped from another project, so check whet
 before trusting them — they may be stale leftovers rather than this project's design.
 
 Repo layout: `api/` is the backend, `ui/` is the frontend, `sdk/` is a Python client library for
-third-party developers who want to fetch prompts from their own code. There is no root-level package
-manager — each side is built and run independently.
+third-party developers who want to fetch prompts from their own code, `cli/` is a local sync
+(import/export) CLI for teams running Promptful locally without a shared server. There is no
+root-level package manager — each side is built and run independently.
 
 ## Backend (`api/`)
 
@@ -86,6 +87,25 @@ uv run pytest                 # full suite — needs api/'s docker-compose Postg
 Its own test suite boots the real FastAPI app via uvicorn on a real port (not a mock, not ASGITransport —
 the SDK's `Client` is sync-only, and `ASGITransport` only supports async clients), pointed at the same
 `app_test` database `api/tests` uses. See `sdk/tests/conftest.py`.
+
+## CLI (`cli/`)
+
+`promptful-sync` — `import`/`export` Prompts between the local database and git-tracked Prompt Files,
+for teams running Promptful locally without a shared server
+([ADR-0009](docs/adr/0009-local-sync-via-git-tracked-prompt-files.md)). A separate package from the
+SDK on purpose, not bundled in — see
+[ADR-0010](docs/adr/0010-sync-cli-ships-as-its-own-package.md). Dependency-managed with `uv`,
+src-layout (`src/promptful_sync/`). Full usage docs: [cli/README.md](cli/README.md).
+
+```bash
+cd cli
+uv sync                       # install dependencies into .venv
+uv run pytest                 # full suite — needs api/'s docker-compose Postgres + app_test migrated
+```
+
+Its own test suite drives the real FastAPI app in-process over `ASGITransport` (this client is async,
+unlike the SDK's, so unlike `sdk/tests` it needs no real bound socket), pointed at the same
+`app_test` database `api/tests` and `sdk/tests` use. See `cli/tests/conftest.py`.
 
 ## Domain model (target design)
 

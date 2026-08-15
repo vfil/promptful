@@ -1,0 +1,43 @@
+[project]
+name = "promptful-sync"
+version = "0.1.0"
+description = "Local sync (import/export) CLI for Promptful — keep a team's prompts in sync via git-tracked Prompt Files, no shared server required."
+readme = "README.md"
+authors = [
+    { name = "Vlad", email = "vladfilimon@gmail.com" }
+]
+requires-python = ">=3.11"
+dependencies = [
+    "httpx>=0.28.1",
+    "pyyaml>=6.0.2",
+]
+
+[project.scripts]
+promptful-sync = "promptful_sync.cli:main"
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1.1",
+    "pytest-asyncio>=1.4.0",
+    # The rest of this group exists only to run the real FastAPI app
+    # in-process for integration tests (see tests/conftest.py) — none of it
+    # is a runtime dependency of this CLI itself. Mirrors sdk/pyproject.toml's
+    # dev group, which reaches into api/ the same way.
+    "fastapi[standard]>=0.115.12",
+    "sqlalchemy[asyncio]>=2.0.41",
+    "asyncpg>=0.31.0",
+    "psycopg2-binary>=2.9.10",
+    "pydantic>=2.13.4",
+    "pydantic-settings>=2.14.2",
+    "jinja2>=3.1.6",
+    "python-dotenv>=1.1.0",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+
+[build-system]
+requires = ["uv_build>=0.11.7,<0.12.0"]
+build-backend = "uv_build"
