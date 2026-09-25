@@ -4,15 +4,17 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project
 
-Promptful is a CRUD service for managing LLM prompts for individuals and companies. Prompts are addressed
-by a hierarchical slug (e.g. `/sales/screening/first-lead`), which doubles as a namespace — slashes group
-related prompts the way directories group files. Beyond plain CRUD, every prompt keeps a full version
-history, and prompts can carry tags for cross-namespace organization.
+Promptful is a CRUD service for managing LLM prompts for individuals and companies. Each Prompt lives at a
+hierarchical Slug (e.g. `/sales/screening/first-lead`), assembled from an explicit Category tree (e.g.
+`/sales/screening`) plus a Leaf Slug (`first-lead`) — Category is a real, first-class entity, not just a
+naming convention baked into the slug string. Beyond plain CRUD, every prompt keeps a full version history.
+See [CONTEXT.md](CONTEXT.md) for the full glossary (Category, Slug Segment, Version, Live Version,
+Tombstone, Role, ...) and the Domain model section below for what's implemented vs. still planned.
 
-This is currently a skeleton: `api/` and `ui/` contain only dependency/config manifests, no application
-code yet. Both directories were bootstrapped from another project, so check whether copied files (e.g.
-`api/docker-compose.yml` comments referencing `doc_import`, snapshot seeding, or ADR docs) actually apply
-before trusting them — they may be stale leftovers rather than this project's design.
+`api/` and `ui/` were originally bootstrapped from another project, so treat any copied file (e.g.
+`api/docker-compose.yml` comments referencing `doc_import`, snapshot seeding, or ADR docs) with suspicion
+until you confirm it actually reflects this project's design — cross-check against
+[CONTEXT.md](CONTEXT.md) and [docs/adr/](docs/adr/), which are this project's own and are kept current.
 
 Repo layout: `api/` is the backend, `ui/` is the frontend, `sdk/` is a Python client library for
 third-party developers who want to fetch prompts from their own code, `cli/` is a local sync
@@ -107,19 +109,17 @@ Its own test suite drives the real FastAPI app in-process over `ASGITransport` (
 unlike the SDK's, so unlike `sdk/tests` it needs no real bound socket), pointed at the same
 `app_test` database `api/tests` and `sdk/tests` use. See `cli/tests/conftest.py`.
 
-## Domain model (target design)
+## Domain model
 
-- **Slug**: hierarchical path (e.g. `/sales/screening/first-lead`) that identifies a prompt and implies its
-  namespace via path segments.
-- **Prompt**: the entity at a slug. Mutations create a new version rather than overwriting — full history
-  is kept per slug.
-- **Version**: an immutable snapshot of a prompt's content tied to a slug; CRUD operations on a prompt are
-  really operations that read/write specific versions while preserving prior ones.
-- **Tags**: free-form labels attached to a prompt, orthogonal to the slug/namespace hierarchy, for
-  cross-cutting organization and search.
-- **Owner**: prompts belong to a private person or a company — ownership/visibility scoping should be a
-  first-class part of any schema or API design here.
+The implemented domain model — Slug, Category, Slug Segment, Category Path, Leaf Slug, Version, Live
+Version, Tombstone, Role, and the Local Sync concepts (Prompt File, Import, Export) — is documented in
+[CONTEXT.md](CONTEXT.md), the canonical glossary. Keep that file in sync with the code, not this one.
 
-When implementing this, the slug/namespace/version relationship is the architectural core: get the data
-model for "one slug → many versions, slug implies namespace by path segments" right before building CRUD
-endpoints or UI around it.
+### Planned, not yet built
+
+- **Tags**: free-form labels attached to a Prompt, orthogonal to the Category hierarchy, for cross-cutting
+  organization and search. Deliberately deferred so far — see
+  [ADR-0001](docs/adr/0001-versions-are-immutable-rows.md).
+- **Owner**: Prompts are meant to belong to a private person or a company, but ownership/visibility scoping
+  isn't modeled anywhere in the schema or API yet. Treat this as a first-class concern for whenever
+  auth/multi-tenancy work starts, not something to bolt on after the fact.
