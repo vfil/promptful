@@ -1,18 +1,18 @@
-# The Ahoy Enterprise License (the “Enterprise License”)
+# The Promptful Enterprise License (the “Enterprise License”)
 
-Copyright (c) 2022-present Ahoy GmbH.
+Copyright (c) 2022-present Vladimir Filimon.
 
-With regard to the Ahoy Software:
+With regard to the Promptful Software:
 
 This software and associated documentation files (the "Software") may only be used in production, if
-you (and any entity that you represent) hold a valid Ahoy Enterprise license corresponding to your
+you (and any entity that you represent) hold a valid Promptful Enterprise license corresponding to your
 usage. Subject to the foregoing sentence, you are free to modify this Software and publish patches
-to the Software. You agree that Ahoy and/or its licensors (as applicable) retain all right, title and
+to the Software. You agree that the Licensor and/or its licensors (as applicable) retain all right, title and
 interest in and to all such modifications and/or patches, and all such modifications and/or patches
-may only be used, copied, modified, displayed, distributed, or otherwise exploited with a valid Ahoy
+may only be used, copied, modified, displayed, distributed, or otherwise exploited with a valid Promptful
 Enterprise license for the corresponding usage. Notwithstanding the foregoing, you may copy and
 modify the Software for development and testing purposes, without requiring a subscription. You
-agree that Ahoy and/or its licensors (as applicable) retain all right, title and interest in and to
+agree that the Licensor and/or its licensors (as applicable) retain all right, title and interest in and to
 all such modifications. You are not granted any other rights beyond what is expressly stated herein.
 Subject to the foregoing, it is forbidden to copy, merge, publish, distribute, sublicense, and/or
 sell the Software.
@@ -23,5 +23,5 @@ NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FO
 OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-For all third party components incorporated into the Ahoy Software, those components are licensed
+For all third party components incorporated into the Promptful Software, those components are licensed
 under the original license provided by the owner of the applicable component.
