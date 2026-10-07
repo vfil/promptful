@@ -40,6 +40,9 @@ uv run fastapi dev --port 8001        # equivalent, without the fastapi CLI wrap
 
 Interactive API docs are served at `/docs` (Swagger UI) and `/redoc`.
 
+`GET /health` runs `SELECT 1` against the database: `200 {"status": "ok"}` when it works, `503` (with the
+traceback logged) when it doesn't. The Docker `HEALTHCHECK` uses it.
+
 ## Testing
 
 ```bash

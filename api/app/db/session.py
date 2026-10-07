@@ -8,6 +8,9 @@ settings = get_settings()
 
 engine = create_async_engine(
     settings.database_url,
+    # Test each pooled connection on checkout and replace dead ones, so a DB
+    # restart doesn't leave the pool handing out broken connections.
+    pool_pre_ping=True,
     pool_size=settings.db_pool_size,
     max_overflow=settings.db_max_overflow,
 )
